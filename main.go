@@ -28,7 +28,7 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-	ram := NewRAM()
-	NewCPU(ram)
-	fmt.Println(cartridge.readPRGROM())
+	wram := NewRAM()
+	NewCPU(wram)
+	fmt.Println(cartridge.ReadPRGROM())
 }

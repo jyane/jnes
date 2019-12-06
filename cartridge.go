@@ -6,7 +6,7 @@ import (
 )
 
 const (
-	INES_HEADER_SIZE_BYTES      = 16
+	INES_HEADER_SIZE_BYTES int  = 16
 	MS_DOS_EOF             byte = 0x1A
 )
 

@@ -23,9 +23,9 @@ type CPU struct {
 	S  byte    // stack pointer
 	P  *Status // processor status bits
 
-	ram *RAM // wram
+	wram *RAM // wram
 }
 
-func NewCPU(ram *RAM) *CPU {
-	return &CPU{0x0000, 0x00, 0x00, 0x00, 0x00, newStatus(), ram}
+func NewCPU(wram *RAM) *CPU {
+	return &CPU{0x0000, 0x00, 0x00, 0x00, 0x00, newStatus(), wram}
 }
