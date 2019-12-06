@@ -1,6 +1,7 @@
 language: go
 
 script:
-  - make build
   - make fmt
+  - git diff --exit-code
+  - make build
   - make test
