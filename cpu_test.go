@@ -12,6 +12,8 @@ func createTestCPU(opcode byte) *CPU {
 	return NewCPU(bus)
 }
 
+// http://obelisk.me.uk/6502/reference.html
+
 func TestAdc(t *testing.T) {
 	cpu := createTestCPU(0x00)
 	cycles := cpu.Step()
