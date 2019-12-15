@@ -1,14 +1,14 @@
 build:
-	go build
+	go build github.com/jyane/jnes/...
 
 fmt:
 	go fmt *.go
 
 run:
-	go run *.go
+	go run github.com/jyane/jnes/...
 
 test:
-	echo 'test'
+	go test github.com/jyane/jnes/...
 
 .PHONY: \
 	build \

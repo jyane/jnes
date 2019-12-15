@@ -7,3 +7,7 @@ type RAM struct {
 func NewRAM() *RAM {
 	return &RAM{[2048]byte{}}
 }
+
+func (ram *RAM) Read(address uint16) byte {
+	return ram.ram[address]
+}
