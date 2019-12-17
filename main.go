@@ -38,6 +38,8 @@ func main() {
 	chrROM := cartridge.ReadCHRROM()
 	log.Printf("Character ROM size = %d bytes\n", len(chrROM))
 	cpu := NewCPU(NewCPUBus(NewRAM(), cartridge.ReadPRGROM()))
+	log.Printf("CPU reset!\n")
+	cpu.Reset()
 	cpu.Step()
 	NewPPU(NewRAM())
 }
