@@ -1,7 +1,5 @@
 package main
 
-import "log"
-
 type Status struct {
 	C bool // carry flag
 	Z bool // zero flag
@@ -13,10 +11,11 @@ type Status struct {
 	N bool // negative flag
 }
 
-func newStatus() *Status {
-	return &Status{false, false, true, true, false, true, false, false}
+func NewStatus() *Status {
+	return &Status{false, false, true, false, false, true, false, false}
 }
 
+// addressing mode
 type Mode int
 
 const (
@@ -72,38 +71,38 @@ var instructionModes = [256]Mode{
 }
 
 var instructionSizes = [256]uint16{
-	2, 2, 2, 2, 2, 2, 2, 2,
-	2, 2, 2, 2, 2, 2, 2, 2,
-	2, 2, 2, 2, 2, 2, 2, 2,
-	2, 2, 2, 2, 2, 2, 2, 2,
-	2, 2, 2, 2, 2, 2, 2, 2,
-	2, 2, 2, 2, 2, 2, 2, 2,
-	2, 2, 2, 2, 2, 2, 2, 2,
-	2, 2, 2, 2, 2, 2, 2, 2,
-	2, 2, 2, 2, 2, 2, 2, 2,
-	2, 2, 2, 2, 2, 2, 2, 2,
-	2, 2, 2, 2, 2, 2, 2, 2,
-	2, 2, 2, 2, 2, 2, 2, 2,
-	2, 2, 2, 2, 2, 2, 2, 2,
-	2, 2, 2, 2, 2, 2, 2, 2,
-	2, 2, 2, 2, 2, 2, 2, 2,
-	2, 2, 2, 2, 2, 2, 2, 2,
-	2, 2, 2, 2, 2, 2, 2, 2,
-	2, 2, 2, 2, 2, 2, 2, 2,
-	2, 2, 2, 2, 2, 2, 2, 2,
-	2, 2, 2, 2, 2, 2, 2, 2,
-	2, 2, 2, 2, 2, 2, 2, 2,
-	2, 2, 2, 2, 2, 2, 2, 2,
-	2, 2, 2, 2, 2, 2, 2, 2,
-	2, 2, 2, 2, 2, 2, 2, 2,
-	2, 2, 2, 2, 2, 2, 2, 2,
-	2, 2, 2, 2, 2, 2, 2, 2,
-	2, 2, 2, 2, 2, 2, 2, 2,
-	2, 2, 2, 2, 2, 2, 2, 2,
-	2, 2, 2, 2, 2, 2, 2, 2,
-	2, 2, 2, 2, 2, 2, 2, 2,
-	2, 2, 2, 2, 2, 2, 2, 2,
-	2, 2, 2, 2, 2, 2, 2, 2,
+	1, 1, 1, 1, 1, 1, 1, 1,
+	1, 1, 1, 1, 1, 1, 1, 1,
+	1, 1, 1, 1, 1, 1, 1, 1,
+	1, 1, 1, 1, 1, 1, 1, 1,
+	1, 1, 1, 1, 1, 1, 1, 1,
+	1, 1, 1, 1, 1, 1, 1, 1,
+	1, 1, 1, 1, 1, 1, 1, 1,
+	1, 1, 1, 1, 1, 1, 1, 1,
+	1, 1, 1, 1, 1, 1, 1, 1,
+	1, 1, 1, 1, 1, 1, 1, 1,
+	1, 1, 1, 1, 1, 1, 1, 1,
+	1, 1, 1, 1, 1, 1, 1, 1,
+	1, 1, 1, 1, 1, 1, 1, 1,
+	1, 2, 1, 1, 1, 1, 1, 1,
+	1, 1, 1, 1, 1, 1, 1, 1,
+	1, 1, 1, 1, 1, 1, 1, 1,
+	1, 1, 1, 1, 1, 1, 1, 1,
+	1, 1, 1, 1, 1, 1, 1, 1,
+	1, 1, 1, 1, 1, 1, 1, 1,
+	1, 1, 1, 1, 1, 1, 1, 1,
+	1, 1, 1, 1, 1, 1, 1, 1,
+	1, 1, 1, 1, 1, 1, 1, 1,
+	1, 1, 1, 1, 1, 1, 1, 1,
+	1, 1, 1, 1, 1, 1, 1, 1,
+	1, 1, 1, 1, 1, 1, 1, 1,
+	1, 1, 1, 1, 1, 1, 1, 1,
+	1, 1, 1, 1, 1, 1, 1, 1,
+	1, 1, 1, 1, 1, 1, 1, 1,
+	1, 1, 1, 1, 1, 1, 1, 1,
+	1, 1, 1, 1, 1, 1, 1, 1,
+	1, 1, 1, 1, 1, 1, 1, 1,
+	1, 1, 1, 1, 1, 1, 1, 1,
 }
 
 type CPU struct {
@@ -113,7 +112,7 @@ type CPU struct {
 	Y            byte                // index register
 	S            byte                // stack pointer
 	P            *Status             // processor status bits
-	Bus                              // bus
+	bus          Bus                 // bus
 	cycles       int                 // current cycles
 	instructions [256]func(Mode) int // instructions
 }
@@ -155,6 +154,12 @@ func (cpu *CPU) createTable() {
 	}
 }
 
+func NewCPU(bus Bus) *CPU {
+	cpu := &CPU{P: NewStatus(), bus: bus}
+	cpu.createTable()
+	return cpu
+}
+
 func (cpu *CPU) SetFlags(f byte) {
 	cpu.P.C = (f>>0)&1 == 1
 	cpu.P.Z = (f>>1)&1 == 1
@@ -166,26 +171,31 @@ func (cpu *CPU) SetFlags(f byte) {
 	cpu.P.N = (f>>7)&1 == 1
 }
 
+// Reset resets CPU state.
 func (cpu *CPU) Reset() {
-	cpu.PC = cpu.bus.Read16(0xFFFC)
+	cpu.PC = cpu.read16(0xFFFC)
 	cpu.S = 0xFD
 	cpu.SetFlags(0x24)
 }
 
-func NewCPU(bus *CPUBus) *CPU {
-	cpu := &CPU{P: newStatus(), bus: bus}
-	cpu.createTable()
-	return cpu
-}
-
-// Step performs fetch - decode - execute steps
+// Step performs fetch - decode - execute steps.
 func (cpu *CPU) Step() int {
-	log.Println(cpu.PC)
 	opcode := cpu.bus.Read(cpu.PC)
-	log.Println(opcode)
 	cycle := cpu.instructions[opcode](instructionModes[opcode])
 	cpu.PC += instructionSizes[opcode]
 	return cycle
+}
+
+// Read16 reads data (2 bytes) from bus.
+func (cpu *CPU) read16(address uint16) uint16 {
+	low := uint16(cpu.bus.Read(address))
+	high := uint16(cpu.bus.Read(address+1)) << 8 // e.g. 11011011 00000000
+	return high | low
+}
+
+// Read reads data (1 byte) from bus.
+func (cpu *CPU) read(address uint16) byte {
+	return cpu.bus.Read(address)
 }
 
 // ADC - Add with Carry

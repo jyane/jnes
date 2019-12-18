@@ -2,6 +2,10 @@ package main
 
 import "log"
 
+type Bus interface {
+	Read(uint16) byte
+}
+
 type CPUBus struct {
 	wram   *RAM
 	prgROM []byte
@@ -33,10 +37,4 @@ func (bus *CPUBus) Read(address uint16) byte {
 		log.Printf("Unknown bus reference from CPU: 0x%04x\n", address)
 	}
 	return 0
-}
-
-func (bus *CPUBus) Read16(address uint16) uint16 {
-	low := uint16(bus.Read(address))
-	high := uint16(bus.Read(address+1)) << 8 // e.g. 11011011 00000000
-	return high | low
 }
