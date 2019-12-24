@@ -4,21 +4,24 @@ import "testing"
 
 type MockBus struct {
 	Bus
-	MockRead func(address uint16) byte
+	MockRead  func(address uint16) byte
+	MockWrite func(address uint16)
 }
 
 func (bus *MockBus) Read(address uint16) byte {
 	return bus.MockRead(address)
 }
 
+func (bus *MockBus) Write(address uint16) {
+	bus.MockWrite(address)
+}
+
 func createTestCPU(opcode byte) *CPU {
 	bus := &MockBus{
 		MockRead: func(address uint16) byte {
-			// If the cpu is reset state, returns 0x00 as a starting point.
-			if address == 0xFFFC || address == 0xFFFD {
-				return 0x00
-			}
 			return opcode
+		},
+		MockWrite: func(address uint16) {
 		},
 	}
 	return NewCPU(bus)
@@ -27,7 +30,12 @@ func createTestCPU(opcode byte) *CPU {
 // http://obelisk.me.uk/6502/reference.html
 
 func TestInstructions(t *testing.T) {
+	var initialA byte = 0x80
+	var initialX byte = 0x81
+	var initialY byte = 0x82
+	var initialS byte = 0xFD
 	for _, test := range []struct {
+		name   string
 		opcode byte
 		cycle  int
 		size   uint16
@@ -37,48 +45,54 @@ func TestInstructions(t *testing.T) {
 		S      byte
 		P      *Status
 	}{
-		// ADC
 		{
+			name:   "ADC",
 			opcode: 0x69,
 			cycle:  2,
-			size:   2,
-			A:      0x00,
-			X:      0x00,
-			Y:      0x00,
-			S:      0xFD,
+			size:   1,
+			A:      initialA,
+			X:      initialX,
+			Y:      initialY,
+			S:      initialS,
 			P:      NewStatus(),
 		},
-		// NOP
 		{
+			name:   "NOP",
 			opcode: 0xEA,
 			cycle:  2,
 			size:   1,
-			A:      0x00,
-			X:      0x00,
-			Y:      0x00,
-			S:      0xFD,
+			A:      initialA,
+			X:      initialX,
+			Y:      initialY,
+			S:      initialS,
 			P:      NewStatus(),
 		},
 	} {
 		cpu := createTestCPU(test.opcode)
-		cpu.Reset()
+		// sets values for testing.
+		cpu.A = initialA
+		cpu.X = initialX
+		cpu.Y = initialY
+		cpu.S = initialS
+		cpu.P = NewStatus()
+		cpu.PC = 0x00
 		if got := cpu.Step(); got != test.cycle {
-			t.Errorf("CPU cycle want=%v, got=%v", test.cycle, got)
+			t.Errorf("%v, CPU cycle want=%v, got=%v", test.name, test.cycle, got)
 		}
 		if got := cpu.PC; got != test.size {
-			t.Errorf("CPU.PC want=%v, got=%v", test.size, got)
+			t.Errorf("%v, CPU.PC want=%v, got=%v", test.name, test.size, got)
 		}
 		if got := cpu.A; got != test.A {
-			t.Errorf("CPU.A want=%v, got=%v", test.A, got)
+			t.Errorf("%v, CPU.A want=%v, got=%v", test.name, test.A, got)
 		}
 		if got := cpu.X; got != test.X {
-			t.Errorf("CPU.X want=%v, got=%v", test.X, got)
+			t.Errorf("%v, CPU.X want=%v, got=%v", test.name, test.X, got)
 		}
 		if got := cpu.Y; got != test.Y {
-			t.Errorf("CPU.Y want=%v, got=%v", test.Y, got)
+			t.Errorf("%v, CPU.Y want=%v, got=%v", test.name, test.Y, got)
 		}
 		if got := cpu.P; &test.P == &got {
-			t.Errorf("CPU.P want=%v, got=%v", test.P, got)
+			t.Errorf("%v, CPU.P want=%v, got=%v", test.name, test.P, got)
 		}
 	}
 }

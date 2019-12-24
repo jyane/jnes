@@ -4,6 +4,7 @@ import "log"
 
 type Bus interface {
 	Read(uint16) byte
+	Write(uint16)
 }
 
 type CPUBus struct {
@@ -37,4 +38,8 @@ func (bus *CPUBus) Read(address uint16) byte {
 		log.Printf("Unknown bus reference from CPU: 0x%04x\n", address)
 	}
 	return 0
+}
+
+// TODO(jyane): Implement this.
+func (bus *CPUBus) Write(address uint16) {
 }
