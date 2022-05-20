@@ -88,7 +88,7 @@ func NewPPU(bus *PPUBus) *PPU {
 
 func (p *PPU) Reset() {
 	// TODO(jyane): Configure a correct state, I'm not sure where it starts, this may vary.
-  // Here just starts from an invisible line.
+	// Here just starts from an invisible line.
 	p.cycle = 0
 	p.scanline = 241
 }
@@ -156,7 +156,7 @@ func (p *PPU) writePPUDATA(data byte) {
 
 func (p *PPU) fetchHighTileData() {
 	address := 0x2000 + uint16(p.nameTableData)
-	p.highTileData = p.read(address + 8) // +1 byte
+	p.highTileData = p.read(address + 8)
 }
 
 func (p *PPU) fetchLowTileData() {
@@ -190,9 +190,8 @@ func (p *PPU) renderPixel(x, y int) {
 //   https://www.nesdev.org/wiki/PPU_rendering
 //   https://www.nesdev.org/wiki/File:Ntsc_timing.png
 func (p *PPU) Do() (bool, *image.RGBA) {
-	// PPU is processing a visible pixel, the first line is invisible.
-	glog.Infof("p.cycle=%d, p.scanline=%d\n", p.cycle, p.scanline)
-	if (1 <= p.cycle && p.cycle <= 256) && (p.scanline <= 240) {
+	// Please see the timing.png.
+	if (1 <= p.cycle && p.cycle <= 256 || 321 <= p.cycle && p.cycle <= 340) && (p.scanline <= 240 || p.scanline == 261) {
 		switch p.cycle % 8 {
 		case 1:
 			p.fetchNameTableData()
@@ -203,6 +202,9 @@ func (p *PPU) Do() (bool, *image.RGBA) {
 		case 7:
 			p.fetchHighTileData()
 		}
+	}
+	// PPU is processing visible area.
+	if 1 <= p.cycle && p.cycle <= 256 && p.scanline <= 240 {
 		p.renderPixel(p.cycle-1, p.scanline)
 	}
 	// tick
