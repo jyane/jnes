@@ -3,7 +3,6 @@ package nes
 import (
 	"image"
 	"image/color"
-	"math/rand"
 
 	"github.com/golang/glog"
 )
@@ -16,7 +15,7 @@ const (
 
 // Palatte colors borrowed from "RGB".
 // Reference: https://emulation.gametechwiki.com/index.php/Famicom_color_palette
-var palettes = [64]color.RGBA{
+var colors = [64]color.RGBA{
 	{0x6D, 0x6D, 0x6D, 1}, {0x00, 0x24, 0x92, 1}, {0x00, 0x00, 0xDB, 1}, {0x6D, 0x49, 0xDB, 1},
 	{0x92, 0x00, 0x6D, 1}, {0xB6, 0x00, 0x6D, 1}, {0xB6, 0x24, 0x00, 1}, {0x92, 0x49, 0x00, 1},
 	{0x6D, 0x49, 0x00, 1}, {0x24, 0x49, 0x00, 1}, {0x00, 0x6D, 0x24, 1}, {0x00, 0x92, 0x00, 1},
@@ -44,7 +43,7 @@ type PPURegisters struct {
 	address uint16
 	// writeFlag indicates whether the current access is for high or low, for PPUADDR $2006
 	writeFlag bool
-	// buffer for PPUDATA
+	// buffer for PPUDATA $2007
 	buffer byte
 }
 
@@ -67,12 +66,6 @@ type PPU struct {
 	// cycle, scanline indicates which pixel is processing.
 	cycle    int
 	scanline int
-
-	// temp data: https://www.nesdev.org/wiki/File:Ntsc_timing.png
-	nameTableData      byte
-	attributeTableData byte
-	lowTileData        byte
-	highTileData       byte
 }
 
 // NewPPU creates a PPU.
@@ -122,7 +115,7 @@ func (p *PPU) write(address uint16, x byte) {
 	}
 }
 
-// writePPUADDR writes PPUADDR ($2007).
+// writePPUADDR writes PPUADDR ($2006).
 func (p *PPU) writePPUADDR(data byte) {
 	if p.registers.writeFlag { // low
 		p.registers.writeFlag = false
@@ -133,10 +126,16 @@ func (p *PPU) writePPUADDR(data byte) {
 	}
 }
 
-// readPPUDATA reads PPUDATA ($2006).
+// writePPUDATA writes PPUDATA ($2007).
+func (p *PPU) writePPUDATA(data byte) {
+	p.write(p.registers.address, data)
+	p.registers.address++
+}
+
+// readPPUDATA reads PPUDATA ($2007).
 func (p *PPU) readPPUDATA() byte {
 	data := p.read(p.registers.address)
-	// buffer if the address is not paletteRAM.
+	// Here buffers if the address is not paletteRAM.
 	if p.registers.address < 0x3F00 {
 		buffered := p.registers.buffer
 		p.registers.buffer = data
@@ -148,65 +147,56 @@ func (p *PPU) readPPUDATA() byte {
 	return data
 }
 
-// writePPUDATA writes PPUDATA ($2006).
-func (p *PPU) writePPUDATA(data byte) {
-	p.write(p.registers.address, data)
-	p.registers.address++
+func (p *PPU) getColor(x, y int, v byte) *color.RGBA {
+	attributeTileY := y / 16
+	attributeTileX := x / 16
+	attributeTableData := p.read(0x23C0 + uint16(attributeTileY)*15 + uint16(attributeTileX))
+	var num byte = 0
+	if y%16 > 8 {
+		num |= 0b10
+	}
+	if x%16 > 8 {
+		num |= 0b01
+	}
+	var palette byte = 0 // 0, 1, 2 or 3
+	palette |= (attributeTableData >> byte(2*num)) & 1
+	palette |= 1 << ((attributeTableData >> byte(2*num+1)) & 1)
+	paletteData := p.read(0x3F00 + uint16(palette*4-(4-v)))
+	c := colors[paletteData]
+	return &c
 }
 
-func (p *PPU) fetchHighTileData() {
-	address := 0x2000 + uint16(p.nameTableData)
-	p.highTileData = p.read(address + 8)
+func (p *PPU) renderFrame() {
+	glog.Infoln("rendering frame...")
+	// Looking up NameTable
+	for y := 0; y <= 240; y++ {
+		for x := 0; x <= 256; x++ {
+			tileY := y / 8
+			tileX := x / 8
+			nameTableAddress := 0x2000 + tileY*32 + tileX
+			sprite := p.read(uint16(nameTableAddress))
+			lowTileAddress := uint16(sprite) * 16
+			highTileAddress := uint16(sprite)*16 + 8
+			var v byte
+			for i := 0; i < 8; i++ {
+				yy := y % 8
+				lv := (p.read(uint16(lowTileAddress + uint16(yy)))) >> (8 - (x % 8)) & 1
+				hv := (p.read(uint16(highTileAddress + uint16(yy)))) >> (8 - (x % 8)) & 1
+				v = lv + hv
+			}
+			p.background.SetRGBA(x, y, *p.getColor(x, y, v))
+		}
+	}
+	glog.Infoln("done")
 }
 
-func (p *PPU) fetchLowTileData() {
-	address := 0x2000 + uint16(p.nameTableData)
-	p.highTileData = p.read(address)
-}
-
-// https://www.nesdev.org/wiki/PPU_scrolling#Tile_and_attribute_fetching
-func (p *PPU) fetchAttributeData() {
-	v := p.registers.address
-	address := 0x23C0 | (v & 0xC000) | ((v >> 4) & 0x38) | ((v >> 2) & 0x07)
-	p.attributeTableData = p.read(address)
-}
-
-// https://www.nesdev.org/wiki/PPU_scrolling#Tile_and_attribute_fetching
-func (p *PPU) fetchNameTableData() {
-	address := 0x2000 | (p.registers.address & 0xFFF)
-	glog.Infof("address=0x%04x, p.registers.address=0x%04x\n", address, p.registers.address)
-	p.nameTableData = p.read(address)
-	glog.Infof("p.nameTableData=0x%04x\n", p.nameTableData)
-}
-
-func (p *PPU) renderPixel(x, y int) {
-	p.background.Set(x, y, palettes[rand.Intn(64)])
-}
-
-// Do emulates a cycle of PPU and each cycles renders a pixel for Analog TV screen,
+// Do emulates a cycle of PPU and each cycles renders a pixel for NTSC,
 // so PPU renders a pixel (right to left, top to bottom) respectively.
-// PPU renders 256x240 pixels but it actually processes 341x261.
+// PPU renders 256x240 pixels but it actually processes 341x261 area.
 // Reference:
 //   https://www.nesdev.org/wiki/PPU_rendering
 //   https://www.nesdev.org/wiki/File:Ntsc_timing.png
 func (p *PPU) Do() (bool, *image.RGBA) {
-	// Please see the timing.png.
-	if (1 <= p.cycle && p.cycle <= 256 || 321 <= p.cycle && p.cycle <= 340) && (p.scanline <= 240 || p.scanline == 261) {
-		switch p.cycle % 8 {
-		case 1:
-			p.fetchNameTableData()
-		case 3:
-			p.fetchAttributeData()
-		case 5:
-			p.fetchLowTileData()
-		case 7:
-			p.fetchHighTileData()
-		}
-	}
-	// PPU is processing visible area.
-	if 1 <= p.cycle && p.cycle <= 256 && p.scanline <= 240 {
-		p.renderPixel(p.cycle-1, p.scanline)
-	}
 	// tick
 	p.cycle++
 	if p.cycle == 341 { // rendered a line
@@ -214,6 +204,7 @@ func (p *PPU) Do() (bool, *image.RGBA) {
 		p.scanline++
 		if p.scanline == 261 { // rendered a frame
 			p.scanline = 0
+			p.renderFrame()
 			return true, p.background
 		}
 	}

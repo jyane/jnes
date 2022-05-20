@@ -145,7 +145,7 @@ func Start(console *nes.Console, width int, height int) {
 	glfw.WindowHint(glfw.ContextVersionMajor, 3)
 	glfw.WindowHint(glfw.ContextVersionMinor, 3)
 	for !window.ShouldClose() {
-		time.Sleep(10 * time.Millisecond)
+		time.Sleep(1 * time.Millisecond)
 		cycles := console.CPU.Do()
 		// PPU's clock is 3x faster than CPU's
 		for i := 0; i < cycles*3; i++ {

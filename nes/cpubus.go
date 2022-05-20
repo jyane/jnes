@@ -67,7 +67,7 @@ func (b *CPUBus) writeToPPURegisters(address uint16, data byte) {
 	case 0x2006:
 		b.ppu.writePPUADDR(data)
 	case 0x2007:
-		b.ppu.writePPUADDR(data)
+		b.ppu.writePPUDATA(data)
 	default:
 		glog.Fatalf("Unkonwn CPU bus write: address=0x%04x, data=0x%02x\n", address, data)
 	}
