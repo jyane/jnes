@@ -1,2 +1,2 @@
-*.nes
-jnes
+rom/
+cpu.pprof

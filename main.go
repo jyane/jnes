@@ -1,11 +1,26 @@
 package main
 
 import (
+	"flag"
 	"io/ioutil"
-	"log"
 	"os"
+	"runtime"
+	"runtime/pprof"
+
+	"github.com/golang/glog"
+
+	"github.com/jyane/jnes/nes"
+	"github.com/jyane/jnes/ui"
 )
 
+var (
+	path       = flag.String("path", "./rom/sample1.nes", "path to NES ROM file")
+	width      = flag.Int("width", 256*4, "widow width")
+	height     = flag.Int("height", 240*4, "widow height")
+	cpuprofile = flag.String("cpuprofile", "", "write cpu profile to file")
+)
+
+// readFile reads file as bytes
 func readFile(path string) ([]byte, error) {
 	f, err := os.Open(path)
 	if err != nil {
@@ -19,27 +34,27 @@ func readFile(path string) ([]byte, error) {
 	return b, nil
 }
 
+func init() {
+	runtime.LockOSThread()
+}
+
 func main() {
-	var romPath = "./sample.nes"
-	log.Println("ROM path = " + romPath)
-	buffer, err := readFile(romPath)
+	flag.Parse()
+	if *cpuprofile != "" {
+		f, err := os.Create("cpu.pprof")
+		if err != nil {
+			glog.Fatal("Failed to create CPU profile: ", err)
+		}
+		defer f.Close()
+		if err := pprof.StartCPUProfile(f); err != nil {
+			glog.Fatal("Failed to start CPU profile: ", err)
+		}
+		defer pprof.StopCPUProfile()
+	}
+	buf, err := readFile(*path)
 	if err != nil {
-		panic(err)
+		glog.Fatalln("Failed to read: " + *path)
 	}
-	log.Printf("Rom size = %d bytes\n", len(buffer))
-	cartridge := NewCartridge(buffer)
-	var check = cartridge.IsValid()
-	if !check {
-		panic("The cartridge is not a valid INES format.")
-	}
-	log.Printf("Catridge(%s) is valid INES format\n", romPath)
-	prgROM := cartridge.ReadPRGROM()
-	log.Printf("Program ROM size = %d bytes\n", len(prgROM))
-	chrROM := cartridge.ReadCHRROM()
-	log.Printf("Character ROM size = %d bytes\n", len(chrROM))
-	cpu := NewCPU(NewCPUBus(NewRAM(), cartridge.ReadPRGROM()))
-	log.Printf("CPU reset!\n")
-	cpu.Reset()
-	cpu.Step()
-	NewPPU(NewRAM())
+	console := nes.NewConsole(buf)
+	ui.Start(console, *width, *height)
 }
