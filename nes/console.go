@@ -13,7 +13,7 @@ func NewConsole(buf []byte) *Console {
 	if err != nil {
 		log.Fatalln(err)
 	}
-  controller := NewController()
+	controller := NewController()
 	ppuBus := NewPPUBus(NewRAM(), cartridge)
 	ppu := NewPPU(ppuBus)
 	cpuBus := NewCPUBus(NewRAM(), ppu, cartridge, controller)

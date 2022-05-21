@@ -2,13 +2,13 @@ build:
 	go build github.com/jyane/jnes/...
 
 fmt:
-	go fmt *.go
+	gofmt -w .
 
 run:
-	go run github.com/jyane/jnes/...
+	go run github.com/jyane/jnes/... -logtostderr
 
 test:
-	go test github.com/jyane/jnes/...
+	go test -v github.com/jyane/jnes/...
 
 .PHONY: \
 	build \
