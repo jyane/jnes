@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"image"
 	"strings"
-	"time"
 
 	"github.com/go-gl/gl/v3.3-core/gl"
 	"github.com/go-gl/glfw/v3.3/glfw"
@@ -145,7 +144,6 @@ func Start(console *nes.Console, width int, height int) {
 	glfw.WindowHint(glfw.ContextVersionMajor, 3)
 	glfw.WindowHint(glfw.ContextVersionMinor, 3)
 	for !window.ShouldClose() {
-		time.Sleep(1 * time.Millisecond)
 		cycles := console.CPU.Do()
 		// PPU's clock is 3x faster than CPU's
 		for i := 0; i < cycles*3; i++ {

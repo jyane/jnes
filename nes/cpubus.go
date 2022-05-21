@@ -26,8 +26,10 @@ func NewCPUBus(wram *RAM, ppu *PPU, cartridge *Cartridge, controller *Controller
 
 func (b *CPUBus) readPPURegister(address uint16) byte {
 	switch address {
-	case 0x2000, 0x2001, 0x2002, 0x2003, 0x2004, 0x2005:
-		glog.Infof("Unimplemented CPU bus read: 0x%04x\n", address)
+	case 0x2002:
+		return b.ppu.readPPUSTATUS()
+	case 0x2004:
+		return b.ppu.readOAMDATA()
 	case 0x2007:
 		return b.ppu.readPPUDATA()
 	default:
@@ -65,8 +67,16 @@ func (b *CPUBus) read16(address uint16) uint16 {
 // writeToPPURegisters writes data to PPU registers.
 func (b *CPUBus) writeToPPURegisters(address uint16, data byte) {
 	switch address {
-	case 0x2000, 0x2001, 0x2002, 0x2003, 0x2004, 0x2005:
-		glog.Infof("Unimplemented CPU bus write: address=0x%04x, data=0x%02x\n", address, data)
+	case 0x2000:
+		b.ppu.writePPUCTRL(data)
+	case 0x2001:
+		b.ppu.writePPUMASK(data)
+	case 0x2003:
+		b.ppu.writePPUADDR(data)
+	case 0x2004:
+		b.ppu.writeOAMDATA(data)
+	case 0x2005:
+		b.ppu.writePPUSCROLL(data)
 	case 0x2006:
 		b.ppu.writePPUADDR(data)
 	case 0x2007:
@@ -85,6 +95,8 @@ func (b *CPUBus) write(address uint16, data byte) {
 		b.wram.write(address-0x0800, data)
 	case address < 0x2008:
 		b.writeToPPURegisters(address, data)
+	case address == 0x4014: // This is also a register thing.
+		b.ppu.writeOAMDMA(data)
 	case address == 0x4016: // 1P
 		b.controller.write(data)
 	default:

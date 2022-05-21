@@ -50,9 +50,17 @@ type PPU struct {
 	// Reference:
 	//   https://www.nesdev.org/wiki/PPU_registers
 	//   https://www.nesdev.org/wiki/PPU_scrolling
-	// Current VRAM address (15bit), for PPUADDR $2006
+
+	oamAddress byte
+	oamData    [256]byte // PPU has internal memory for Object Attribute Memory.
+
+	// Current VRAM address (15bits), for PPUADDR $2006
 	v uint16
-	// w indicates whether the current access is for high or low, for PPUADDR $2006
+	// Temporary VRAM address (15bits)
+	t uint16
+	// fine x scroll (3bits)
+	x byte
+	// w is a shared write toggle.
 	w bool
 	// buffer for PPUDATA $2007
 	buffer byte
@@ -82,14 +90,79 @@ func (p *PPU) Reset() {
 	p.scanline = 241
 }
 
+// writePPUCTRL writes PPUCTRL ($2000).
+func (p *PPU) writePPUCTRL(data byte) {
+	// TODO(jyane): impelent
+	// t: ...GH.. ........ <- d: ......GH
+	p.t = (p.t & 0xF3FF) | ((uint16(data) & 0x03) << 10)
+}
+
+// writePPUMASK writes PPUMASK ($2001).
+func (p *PPU) writePPUMASK(data byte) {
+	// TODO(jyane): impelent
+}
+
+// readPPUSTATUS reads PPUSTATUS ($2002).
+func (p *PPU) readPPUSTATUS() byte {
+	// TODO(jyane): impelent
+	p.w = false
+	return 0
+}
+
+// writeOAMADDR writes OAMADDR ($2003).
+func (p *PPU) writeOAMADDR(data byte) {
+	p.oamAddress = data
+}
+
+// readOAMDATA reads OAMDATA ($2004).
+func (p *PPU) readOAMDATA() byte {
+	// TODO(jyane): impelent
+	return 0
+}
+
+// writeOAMDATA writes OAMDATA ($2004).
+func (p *PPU) writeOAMDATA(data byte) {
+	p.oamData[p.oamAddress] = data
+	p.oamAddress++
+}
+
+// writePPUSCROLL writes PPUSCROLL ($2005).
+func (p *PPU) writePPUSCROLL(data byte) {
+	if !p.w {
+		// t: ....... ...ABCDE <- d: ABCDE...
+		// x:              FGH <- d: .....FGH
+		// w:                  <- 1
+		p.t = (p.t & 0xFFE0) | (uint16(data) >> 3)
+		p.x = data & 0b111
+		p.w = true
+	} else {
+		// t: FGH..AB CDE..... <- d: ABCDEFGH
+		// w:                  <- 0
+		// ->
+		// t: .FGH .... .... .... <- d: .... .FGH
+		p.t = (p.t & 0x8FFF) | ((uint16(data) & 0x07) << 12)
+		// t: .... ..AB CDE. .... <- d: ABCD E...
+		p.t = (p.t & 0xFC1F) | ((uint16(data) & 0xF8) << 2)
+		p.w = false
+	}
+}
+
 // writePPUADDR writes PPUADDR ($2006).
 func (p *PPU) writePPUADDR(data byte) {
-	if p.w { // low
-		p.w = false
-		p.v += uint16(data)
-	} else { // high
-		p.v = uint16(data) << 8
+	if !p.w {
+		// t: ..CD EFGH .... .... <- d: ..CDEFGH
+		//    <unused>     <- d: AB......
+		// t: Z...... ........ <- 0 (bit Z is cleared)
+		// w:                  <- 1
+		p.t = (p.t & 0xC0FF) | (uint16(data) << 8)
 		p.w = true
+	} else {
+		// t: ....... ABCDEFGH <- d: ABCDEFGH
+		// v: <...all bits...> <- t: <...all bits...>
+		// w:                  <- 0
+		p.t = (p.t & 0xFF00) | uint16(data)
+		p.v = p.t
+		p.w = false
 	}
 }
 
@@ -117,6 +190,11 @@ func (p *PPU) readPPUDATA() byte {
 	}
 	p.v++
 	return data
+}
+
+// writeOAMDMA writes OAMDMA ($4014).
+func (p *PPU) writeOAMDMA(value byte) {
+	glog.Infoln("writeOAMDMA called, not implemented.")
 }
 
 func (p *PPU) getColor(x, y int, v byte) *color.RGBA {

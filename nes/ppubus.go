@@ -12,6 +12,17 @@ func NewPPUBus(vram *RAM, cartridge *Cartridge) *PPUBus {
 	return &PPUBus{vram, cartridge}
 }
 
+var offsets = []uint16{0x0800, 0x0400}
+
+func (b *PPUBus) mirrorAddress(address uint16) uint16 {
+	mode := b.cartridge.getTableMirrorMode()
+	if 0x2000 <= address && address <= 0x23FF { // first screen
+		return address - 0x2000
+	} else {
+		return address - 0x2000 - offsets[mode]
+	}
+}
+
 // read reads data.
 // Address        Size	  Description
 // -------------------------------------
@@ -30,10 +41,10 @@ func (b *PPUBus) read(address uint16) byte {
 	case address < 0x2000:
 		return b.cartridge.chrROM[address]
 	case address < 0x3000:
-		return b.vram.read(address - 0x2000)
+		return b.vram.read(b.mirrorAddress(address))
 	case address < 0x3F00:
 		// Mirror
-		return b.vram.read(address - 0x3000)
+		return b.vram.read(b.mirrorAddress(address) - 0x1000)
 	default:
 		glog.Fatalf("Unknown PPU bus read: 0x%04x\n", address)
 	}
@@ -45,13 +56,12 @@ func (b *PPUBus) read(address uint16) byte {
 func (b *PPUBus) write(address uint16, data byte) {
 	switch {
 	case address < 0x2000:
-		// TODO(jyane): todo
 		return
 	case address < 0x3000:
-		b.vram.write(address-0x2000, data)
+		b.vram.write(b.mirrorAddress(address), data)
 	case address < 0x3F00:
 		// Mirror
-		b.vram.write(address-0x3000, data)
+		b.vram.write(b.mirrorAddress(address)-0x1000, data)
 	default:
 		glog.Fatalf("Unknown PPU bus write: address=0x%04x, data=0x%02x\n", address, data)
 	}
