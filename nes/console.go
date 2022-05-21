@@ -3,8 +3,9 @@ package nes
 import "log"
 
 type Console struct {
-	CPU *CPU
-	PPU *PPU
+	CPU        *CPU
+	PPU        *PPU
+	Controller *Controller
 }
 
 func NewConsole(buf []byte) *Console {
@@ -12,9 +13,10 @@ func NewConsole(buf []byte) *Console {
 	if err != nil {
 		log.Fatalln(err)
 	}
+	controller := NewController()
 	ppuBus := NewPPUBus(NewRAM(), cartridge)
 	ppu := NewPPU(ppuBus)
-	cpuBus := NewCPUBus(NewRAM(), ppu, cartridge)
+	cpuBus := NewCPUBus(NewRAM(), ppu, cartridge, controller)
 	cpu := NewCPU(cpuBus)
-	return &Console{cpu, ppu}
+	return &Console{cpu, ppu, controller}
 }

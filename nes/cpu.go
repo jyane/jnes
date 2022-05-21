@@ -11,19 +11,19 @@ import "github.com/golang/glog"
 type addressingMode int
 
 const (
-	Implied addressingMode = iota
-	Accumulator
-	Immediate
-	Zeropage
-	ZeropageX
-	ZeropageY
-	Relative
-	Absolute
-	AbsoluteX
-	AbsoluteY
-	Indirect
-	IndirectX
-	IndirectY
+	implied addressingMode = iota
+	accumulator
+	immdiate
+	zeropage
+	zeropageX
+	zeropageY
+	relative
+	absolute
+	absoluteX
+	absoluteY
+	indirect
+	indirectX
+	indirectY
 )
 
 type status struct {
@@ -100,262 +100,262 @@ type instruction struct {
 
 func (c *CPU) createInstructions() []instruction {
 	return []instruction{
-		{"BRK", Implied, c.brk, 1, 7},     // 0x00
-		{"ORA", IndirectX, c.ora, 2, 6},   // 0x01
-		{"", Implied, c.nop, 1, 2},        // 0x02
-		{"", Implied, c.nop, 1, 2},        // 0x03
-		{"", Implied, c.nop, 1, 2},        // 0x04
-		{"ORA", Zeropage, c.ora, 2, 3},    // 0x05
-		{"ASL", Zeropage, c.asl, 2, 5},    // 0x06
-		{"", Implied, c.nop, 1, 2},        // 0x07
-		{"PHP", Implied, c.php, 1, 3},     // 0x08
-		{"ORA", Immediate, c.ora, 2, 2},   // 0x09
-		{"ASL", Accumulator, c.asl, 1, 2}, // 0x0A
-		{"", Implied, c.nop, 1, 2},        // 0x0B
-		{"", Implied, c.nop, 1, 2},        // 0x0C
-		{"ORA", Absolute, c.ora, 3, 4},    // 0x0D
-		{"ASL", Absolute, c.asl, 3, 6},    // 0x0E
-		{"", Implied, c.nop, 1, 2},        // 0x0F
-		{"BPL", Relative, c.bpl, 2, 2},    // 0x10
-		{"ORA", IndirectY, c.ora, 2, 5},   // 0x11
-		{"", Implied, c.nop, 1, 2},        // 0x12
-		{"", Implied, c.nop, 1, 2},        // 0x13
-		{"", Implied, c.nop, 1, 2},        // 0x14
-		{"ORA", ZeropageX, c.ora, 2, 4},   // 0x15
-		{"ASL", ZeropageX, c.asl, 2, 6},   // 0x16
-		{"", Implied, c.nop, 1, 2},        // 0x17
-		{"CLC", Implied, c.clc, 1, 2},     // 0x18
-		{"ORA", AbsoluteY, c.ora, 3, 4},   // 0x19
-		{"", Implied, c.nop, 1, 2},        // 0x1A
-		{"", Implied, c.nop, 1, 2},        // 0x1B
-		{"", Implied, c.nop, 1, 2},        // 0x1C
-		{"ORA", AbsoluteX, c.ora, 3, 4},   // 0x1D
-		{"ASL", AbsoluteX, c.asl, 3, 7},   // 0x1E
-		{"", Implied, c.nop, 1, 2},        // 0x1F
-		{"JSR", Absolute, c.jsr, 3, 6},    // 0x20
-		{"AND", IndirectX, c.and, 2, 6},   // 0x21
-		{"", Implied, c.nop, 1, 2},        // 0x22
-		{"", Implied, c.nop, 1, 2},        // 0x23
-		{"BIT", Zeropage, c.bit, 2, 3},    // 0x24
-		{"AND", Zeropage, c.and, 2, 3},    // 0x25
-		{"ROL", Zeropage, c.rol, 2, 5},    // 0x26
-		{"", Implied, c.nop, 1, 2},        // 0x27
-		{"PLP", Implied, c.plp, 1, 4},     // 0x28
-		{"AND", Immediate, c.and, 2, 2},   // 0x29
-		{"ROL", Accumulator, c.rol, 1, 2}, // 0x2A
-		{"", Implied, c.nop, 1, 2},        // 0x2B
-		{"BIT", Absolute, c.bit, 3, 4},    // 0x2C
-		{"AND", Absolute, c.and, 3, 4},    // 0x2D
-		{"ROL", Absolute, c.rol, 3, 6},    // 0x2E
-		{"", Implied, c.nop, 1, 2},        // 0x2F
-		{"BMI", Relative, c.bmi, 2, 2},    // 0x30
-		{"AND", IndirectY, c.and, 2, 5},   // 0x31
-		{"", Implied, c.nop, 1, 2},        // 0x32
-		{"", Implied, c.nop, 1, 2},        // 0x33
-		{"", Implied, c.nop, 1, 2},        // 0x34
-		{"AND", ZeropageX, c.and, 2, 4},   // 0x35
-		{"ROL", ZeropageX, c.rol, 2, 6},   // 0x36
-		{"", Implied, c.nop, 1, 2},        // 0x37
-		{"SEC", Implied, c.sec, 1, 2},     // 0x38
-		{"AND", AbsoluteY, c.and, 3, 4},   // 0x39
-		{"", Implied, c.nop, 1, 2},        // 0x3A
-		{"", Implied, c.nop, 1, 2},        // 0x3B
-		{"", Implied, c.nop, 1, 2},        // 0x3C
-		{"AND", AbsoluteX, c.and, 3, 4},   // 0x3D
-		{"ROL", AbsoluteX, c.rol, 3, 7},   // 0x3E
-		{"", Implied, c.nop, 1, 2},        // 0x3F
-		{"RTI", Implied, c.rti, 1, 6},     // 0x40
-		{"EOR", IndirectX, c.eor, 2, 6},   // 0x41
-		{"", Implied, c.nop, 1, 2},        // 0x42
-		{"", Implied, c.nop, 1, 2},        // 0x43
-		{"", Implied, c.nop, 1, 2},        // 0x44
-		{"EOR", Zeropage, c.eor, 2, 3},    // 0x45
-		{"LSR", Zeropage, c.lsr, 2, 5},    // 0x46
-		{"", Implied, c.nop, 1, 2},        // 0x47
-		{"PHA", Implied, c.pha, 1, 3},     // 0x48
-		{"EOR", Immediate, c.eor, 2, 2},   // 0x49
-		{"LSR", Accumulator, c.lsr, 1, 2}, // 0x4A
-		{"", Implied, c.nop, 1, 2},        // 0x4B
-		{"JMP", Absolute, c.jmp, 3, 3},    // 0x4C
-		{"EOR", Absolute, c.eor, 3, 4},    // 0x4D
-		{"LSR", Absolute, c.lsr, 3, 6},    // 0x4E
-		{"", Implied, c.nop, 1, 2},        // 0x4F
-		{"BVC", Relative, c.bvc, 2, 2},    // 0x50
-		{"EOR", IndirectY, c.eor, 2, 5},   // 0x51
-		{"", Implied, c.nop, 1, 2},        // 0x52
-		{"", Implied, c.nop, 1, 2},        // 0x53
-		{"", Implied, c.nop, 1, 2},        // 0x54
-		{"EOR", ZeropageX, c.eor, 2, 4},   // 0x55
-		{"", ZeropageX, c.nop, 2, 6},      // 0x56
-		{"", Implied, c.nop, 1, 2},        // 0x57
-		{"CLI", Implied, c.cli, 1, 2},     // 0x58
-		{"EOR", AbsoluteY, c.eor, 3, 4},   // 0x59
-		{"", Implied, c.nop, 1, 2},        // 0x5A
-		{"", Implied, c.nop, 1, 2},        // 0x5B
-		{"", Implied, c.nop, 1, 2},        // 0x5C
-		{"EOR", AbsoluteX, c.eor, 3, 4},   // 0x5D
-		{"LSR", AbsoluteX, c.lsr, 3, 7},   // 0x5E
-		{"", Implied, c.nop, 1, 2},        // 0x5F
-		{"RTS", Implied, c.rts, 1, 6},     // 0x60
-		{"ADC", IndirectX, c.adc, 2, 6},   // 0x61
-		{"", Implied, c.nop, 1, 2},        // 0x62
-		{"", Implied, c.nop, 1, 2},        // 0x63
-		{"", Implied, c.nop, 1, 2},        // 0x64
-		{"ADC", Zeropage, c.adc, 2, 3},    // 0x65
-		{"ROR", Zeropage, c.ror, 2, 5},    // 0x66
-		{"", Implied, c.nop, 1, 2},        // 0x67
-		{"PLA", Implied, c.pla, 1, 4},     // 0x68
-		{"ADC", Immediate, c.adc, 2, 2},   // 0x69
-		{"ROR", Accumulator, c.ror, 1, 2}, // 0x6A
-		{"", Implied, c.nop, 1, 2},        // 0x6B
-		{"JMP", Indirect, c.jmp, 3, 5},    // 0x6C
-		{"ADC", Absolute, c.adc, 3, 4},    // 0x6D
-		{"ROR", Absolute, c.ror, 3, 6},    // 0x6E
-		{"", Implied, c.nop, 1, 2},        // 0x6F
-		{"BVS", Relative, c.bvs, 2, 2},    // 0x70
-		{"ADC", IndirectY, c.adc, 2, 5},   // 0x71
-		{"", Implied, c.nop, 1, 2},        // 0x72
-		{"", Implied, c.nop, 1, 2},        // 0x73
-		{"", Implied, c.nop, 1, 2},        // 0x74
-		{"ADC", ZeropageX, c.adc, 2, 4},   // 0x75
-		{"ROR", ZeropageX, c.ror, 2, 6},   // 0x76
-		{"", Implied, c.nop, 1, 2},        // 0x77
-		{"SEI", Implied, c.sei, 1, 2},     // 0x78
-		{"ADC", AbsoluteY, c.adc, 3, 4},   // 0x79
-		{"", Implied, c.nop, 1, 2},        // 0x7A
-		{"", Implied, c.nop, 1, 2},        // 0x7B
-		{"", Implied, c.nop, 1, 2},        // 0x7C
-		{"ADC", AbsoluteX, c.adc, 3, 4},   // 0x7D
-		{"ROR", AbsoluteX, c.ror, 3, 7},   // 0x7E
-		{"", Implied, c.nop, 1, 2},        // 0x7F
-		{"", Implied, c.nop, 1, 2},        // 0x80
-		{"STA", IndirectX, c.sta, 2, 6},   // 0x81
-		{"", Implied, c.nop, 1, 2},        // 0x82
-		{"", Implied, c.nop, 1, 2},        // 0x83
-		{"STY", Zeropage, c.sty, 2, 3},    // 0x84
-		{"STA", Zeropage, c.sta, 2, 3},    // 0x85
-		{"STX", Zeropage, c.stx, 2, 3},    // 0x86
-		{"", Implied, c.nop, 1, 2},        // 0x87
-		{"DEY", Implied, c.dey, 1, 2},     // 0x88
-		{"", Implied, c.nop, 1, 2},        // 0x89
-		{"TXA", Implied, c.txa, 1, 2},     // 0x8A
-		{"", Implied, c.nop, 1, 2},        // 0x8B
-		{"STY", Absolute, c.sty, 3, 4},    // 0x8C
-		{"STA", Absolute, c.sta, 3, 4},    // 0x8D
-		{"STX", Absolute, c.stx, 3, 4},    // 0x8E
-		{"", Implied, c.nop, 1, 2},        // 0x8F
-		{"BCC", Relative, c.bcc, 2, 2},    // 0x90
-		{"STA", IndirectY, c.sta, 2, 6},   // 0x91
-		{"", Implied, c.nop, 1, 2},        // 0x92
-		{"", Implied, c.nop, 1, 2},        // 0x93
-		{"STY", ZeropageX, c.sty, 2, 4},   // 0x94
-		{"STA", ZeropageX, c.sta, 2, 4},   // 0x95
-		{"STX", ZeropageY, c.stx, 2, 4},   // 0x96
-		{"", Implied, c.nop, 1, 2},        // 0x97
-		{"TYA", Implied, c.tya, 1, 2},     // 0x98
-		{"STA", AbsoluteY, c.sta, 3, 5},   // 0x99
-		{"TSX", Implied, c.tsx, 1, 2},     // 0x9A
-		{"", Implied, c.nop, 1, 2},        // 0x9B
-		{"", Implied, c.nop, 1, 2},        // 0x9C
-		{"STA", AbsoluteX, c.sta, 3, 5},   // 0x9D
-		{"", Implied, c.nop, 1, 2},        // 0x9E
-		{"", Implied, c.nop, 1, 2},        // 0x9F
-		{"LDY", Immediate, c.ldy, 2, 2},   // 0xA0
-		{"LDA", IndirectX, c.lda, 2, 6},   // 0xA1
-		{"LDX", Immediate, c.ldx, 2, 2},   // 0xA2
-		{"", Implied, c.nop, 1, 2},        // 0xA3
-		{"LDY", Zeropage, c.ldy, 2, 3},    // 0xA4
-		{"LDA", Zeropage, c.lda, 2, 2},    // 0xA5
-		{"LDX", Zeropage, c.ldx, 2, 3},    // 0xA6
-		{"", Implied, c.nop, 1, 2},        // 0xA7
-		{"TAY", Implied, c.tay, 1, 2},     // 0xA8
-		{"LDA", Immediate, c.lda, 2, 2},   // 0xA9
-		{"TAX", Implied, c.tax, 1, 2},     // 0xAA
-		{"", Implied, c.nop, 1, 2},        // 0xAB
-		{"LDY", Absolute, c.ldy, 3, 4},    // 0xAC
-		{"LDA", Absolute, c.lda, 3, 4},    // 0xAD
-		{"LDX", Absolute, c.ldx, 3, 4},    // 0xAE
-		{"", Implied, c.nop, 1, 2},        // 0xAF
-		{"BCS", Relative, c.bcs, 2, 2},    // 0xB0
-		{"LDA", IndirectY, c.lda, 2, 5},   // 0xB1
-		{"", Implied, c.nop, 1, 2},        // 0xB2
-		{"", Implied, c.nop, 1, 2},        // 0xB3
-		{"LDX", ZeropageX, c.ldx, 2, 4},   // 0xB4
-		{"LDA", ZeropageX, c.lda, 2, 4},   // 0xB5
-		{"LDX", ZeropageY, c.ldx, 2, 4},   // 0xB6
-		{"", Implied, c.nop, 1, 2},        // 0xB7
-		{"CLV", Implied, c.clv, 1, 2},     // 0xB8
-		{"LDA", AbsoluteY, c.lda, 3, 4},   // 0xB9
-		{"TSX", Implied, c.tsx, 1, 2},     // 0xBA
-		{"", Implied, c.nop, 1, 2},        // 0xBB
-		{"LDY", AbsoluteX, c.ldy, 3, 4},   // 0xBC
-		{"LDA", AbsoluteX, c.lda, 3, 4},   // 0xBD
-		{"LDX", AbsoluteY, c.ldx, 3, 4},   // 0xBE
-		{"", Implied, c.nop, 1, 2},        // 0xBF
-		{"CPY", Immediate, c.cpy, 2, 2},   // 0xC0
-		{"CMP", IndirectX, c.cmp, 2, 6},   // 0xC1
-		{"", Implied, c.nop, 1, 2},        // 0xC2
-		{"", Implied, c.nop, 1, 2},        // 0xC3
-		{"CPY", Zeropage, c.cpy, 2, 3},    // 0xC4
-		{"CMP", Zeropage, c.cmp, 2, 3},    // 0xC5
-		{"DEC", Zeropage, c.dec, 2, 5},    // 0xC6
-		{"", Implied, c.nop, 1, 2},        // 0xC7
-		{"INY", Implied, c.iny, 1, 2},     // 0xC8
-		{"CMP", Immediate, c.cmp, 2, 2},   // 0xC9
-		{"DEX", Implied, c.dex, 1, 2},     // 0xCA
-		{"", Implied, c.nop, 1, 2},        // 0xCB
-		{"CPY", Absolute, c.cpy, 3, 4},    // 0xCC
-		{"CMP", Absolute, c.cmp, 3, 4},    // 0xCD
-		{"DEC", Absolute, c.dec, 3, 6},    // 0xCE
-		{"", Implied, c.nop, 1, 2},        // 0xCF
-		{"BNE", Relative, c.bne, 2, 2},    // 0xD0
-		{"CMP", IndirectY, c.cmp, 2, 5},   // 0xD1
-		{"", Implied, c.nop, 1, 2},        // 0xD2
-		{"", Implied, c.nop, 1, 2},        // 0xD3
-		{"", Implied, c.nop, 1, 2},        // 0xD4
-		{"CMP", ZeropageX, c.cmp, 2, 4},   // 0xD5
-		{"DEC", ZeropageX, c.dec, 2, 6},   // 0xD6
-		{"", Implied, c.nop, 1, 2},        // 0xD7
-		{"CLD", Implied, c.cld, 1, 2},     // 0xD8
-		{"CMP", AbsoluteY, c.cmp, 3, 4},   // 0xD9
-		{"", Implied, c.nop, 1, 2},        // 0xDA
-		{"", Implied, c.nop, 1, 2},        // 0xDB
-		{"", Implied, c.nop, 1, 2},        // 0xDC
-		{"CMP", AbsoluteX, c.cmp, 3, 4},   // 0xDD
-		{"DEC", AbsoluteX, c.dec, 3, 7},   // 0xDE
-		{"", Implied, c.nop, 1, 2},        // 0xDF
-		{"CPX", Immediate, c.cpx, 2, 2},   // 0xE0
-		{"SBC", IndirectX, c.sbc, 2, 6},   // 0xE1
-		{"", Implied, c.nop, 1, 2},        // 0xE2
-		{"", Implied, c.nop, 1, 2},        // 0xE3
-		{"CPX", Zeropage, c.cpx, 2, 3},    // 0xE4
-		{"SBC", Zeropage, c.sbc, 2, 3},    // 0xE5
-		{"INC", Zeropage, c.inc, 2, 5},    // 0xE6
-		{"", Implied, c.nop, 1, 2},        // 0xE7
-		{"INX", Implied, c.inx, 1, 2},     // 0xE8
-		{"SBC", Immediate, c.sbc, 2, 2},   // 0xE9
-		{"NOP", Implied, c.nop, 1, 2},     // 0xEA
-		{"", Implied, c.nop, 1, 2},        // 0xEB
-		{"CPX", Absolute, c.cpx, 3, 4},    // 0xEC
-		{"SBC", Absolute, c.sbc, 3, 4},    // 0xED
-		{"INC", Absolute, c.inc, 3, 6},    // 0xEE
-		{"", Implied, c.nop, 1, 2},        // 0xEF
-		{"BEQ", Relative, c.beq, 2, 2},    // 0xF0
-		{"SBC", IndirectY, c.sbc, 2, 5},   // 0xF1
-		{"", Implied, c.nop, 1, 2},        // 0xF2
-		{"", Implied, c.nop, 1, 2},        // 0xF3
-		{"", Implied, c.nop, 1, 2},        // 0xF4
-		{"SBC", ZeropageX, c.sbc, 2, 4},   // 0xF5
-		{"INC", ZeropageX, c.inc, 2, 6},   // 0xF6
-		{"", Implied, c.nop, 1, 2},        // 0xF7
-		{"SED", Implied, c.sed, 1, 2},     // 0xF8
-		{"SBC", AbsoluteY, c.sbc, 3, 4},   // 0xF9
-		{"", Implied, c.nop, 1, 2},        // 0xFA
-		{"", Implied, c.nop, 1, 2},        // 0xFB
-		{"", Implied, c.nop, 1, 2},        // 0xFC
-		{"SBC", AbsoluteX, c.sbc, 3, 4},   // 0xFD
-		{"INC", AbsoluteX, c.inc, 3, 7},   // 0xFE
-		{"", Implied, c.nop, 1, 2},        // 0xFF
+		{"BRK", implied, c.brk, 1, 7},     // 0x00
+		{"ORA", indirectX, c.ora, 2, 6},   // 0x01
+		{"", implied, c.nop, 1, 2},        // 0x02
+		{"", implied, c.nop, 1, 2},        // 0x03
+		{"", implied, c.nop, 1, 2},        // 0x04
+		{"ORA", zeropage, c.ora, 2, 3},    // 0x05
+		{"ASL", zeropage, c.asl, 2, 5},    // 0x06
+		{"", implied, c.nop, 1, 2},        // 0x07
+		{"PHP", implied, c.php, 1, 3},     // 0x08
+		{"ORA", immdiate, c.ora, 2, 2},    // 0x09
+		{"ASL", accumulator, c.asl, 1, 2}, // 0x0A
+		{"", implied, c.nop, 1, 2},        // 0x0B
+		{"", implied, c.nop, 1, 2},        // 0x0C
+		{"ORA", absolute, c.ora, 3, 4},    // 0x0D
+		{"ASL", absolute, c.asl, 3, 6},    // 0x0E
+		{"", implied, c.nop, 1, 2},        // 0x0F
+		{"BPL", relative, c.bpl, 2, 2},    // 0x10
+		{"ORA", indirectY, c.ora, 2, 5},   // 0x11
+		{"", implied, c.nop, 1, 2},        // 0x12
+		{"", implied, c.nop, 1, 2},        // 0x13
+		{"", implied, c.nop, 1, 2},        // 0x14
+		{"ORA", zeropageX, c.ora, 2, 4},   // 0x15
+		{"ASL", zeropageX, c.asl, 2, 6},   // 0x16
+		{"", implied, c.nop, 1, 2},        // 0x17
+		{"CLC", implied, c.clc, 1, 2},     // 0x18
+		{"ORA", absoluteY, c.ora, 3, 4},   // 0x19
+		{"", implied, c.nop, 1, 2},        // 0x1A
+		{"", implied, c.nop, 1, 2},        // 0x1B
+		{"", implied, c.nop, 1, 2},        // 0x1C
+		{"ORA", absoluteX, c.ora, 3, 4},   // 0x1D
+		{"ASL", absoluteX, c.asl, 3, 7},   // 0x1E
+		{"", implied, c.nop, 1, 2},        // 0x1F
+		{"JSR", absolute, c.jsr, 3, 6},    // 0x20
+		{"AND", indirectX, c.and, 2, 6},   // 0x21
+		{"", implied, c.nop, 1, 2},        // 0x22
+		{"", implied, c.nop, 1, 2},        // 0x23
+		{"BIT", zeropage, c.bit, 2, 3},    // 0x24
+		{"AND", zeropage, c.and, 2, 3},    // 0x25
+		{"ROL", zeropage, c.rol, 2, 5},    // 0x26
+		{"", implied, c.nop, 1, 2},        // 0x27
+		{"PLP", implied, c.plp, 1, 4},     // 0x28
+		{"AND", immdiate, c.and, 2, 2},    // 0x29
+		{"ROL", accumulator, c.rol, 1, 2}, // 0x2A
+		{"", implied, c.nop, 1, 2},        // 0x2B
+		{"BIT", absolute, c.bit, 3, 4},    // 0x2C
+		{"AND", absolute, c.and, 3, 4},    // 0x2D
+		{"ROL", absolute, c.rol, 3, 6},    // 0x2E
+		{"", implied, c.nop, 1, 2},        // 0x2F
+		{"BMI", relative, c.bmi, 2, 2},    // 0x30
+		{"AND", indirectY, c.and, 2, 5},   // 0x31
+		{"", implied, c.nop, 1, 2},        // 0x32
+		{"", implied, c.nop, 1, 2},        // 0x33
+		{"", implied, c.nop, 1, 2},        // 0x34
+		{"AND", zeropageX, c.and, 2, 4},   // 0x35
+		{"ROL", zeropageX, c.rol, 2, 6},   // 0x36
+		{"", implied, c.nop, 1, 2},        // 0x37
+		{"SEC", implied, c.sec, 1, 2},     // 0x38
+		{"AND", absoluteY, c.and, 3, 4},   // 0x39
+		{"", implied, c.nop, 1, 2},        // 0x3A
+		{"", implied, c.nop, 1, 2},        // 0x3B
+		{"", implied, c.nop, 1, 2},        // 0x3C
+		{"AND", absoluteX, c.and, 3, 4},   // 0x3D
+		{"ROL", absoluteX, c.rol, 3, 7},   // 0x3E
+		{"", implied, c.nop, 1, 2},        // 0x3F
+		{"RTI", implied, c.rti, 1, 6},     // 0x40
+		{"EOR", indirectX, c.eor, 2, 6},   // 0x41
+		{"", implied, c.nop, 1, 2},        // 0x42
+		{"", implied, c.nop, 1, 2},        // 0x43
+		{"", implied, c.nop, 1, 2},        // 0x44
+		{"EOR", zeropage, c.eor, 2, 3},    // 0x45
+		{"LSR", zeropage, c.lsr, 2, 5},    // 0x46
+		{"", implied, c.nop, 1, 2},        // 0x47
+		{"PHA", implied, c.pha, 1, 3},     // 0x48
+		{"EOR", immdiate, c.eor, 2, 2},    // 0x49
+		{"LSR", accumulator, c.lsr, 1, 2}, // 0x4A
+		{"", implied, c.nop, 1, 2},        // 0x4B
+		{"JMP", absolute, c.jmp, 3, 3},    // 0x4C
+		{"EOR", absolute, c.eor, 3, 4},    // 0x4D
+		{"LSR", absolute, c.lsr, 3, 6},    // 0x4E
+		{"", implied, c.nop, 1, 2},        // 0x4F
+		{"BVC", relative, c.bvc, 2, 2},    // 0x50
+		{"EOR", indirectY, c.eor, 2, 5},   // 0x51
+		{"", implied, c.nop, 1, 2},        // 0x52
+		{"", implied, c.nop, 1, 2},        // 0x53
+		{"", implied, c.nop, 1, 2},        // 0x54
+		{"EOR", zeropageX, c.eor, 2, 4},   // 0x55
+		{"", zeropageX, c.nop, 2, 6},      // 0x56
+		{"", implied, c.nop, 1, 2},        // 0x57
+		{"CLI", implied, c.cli, 1, 2},     // 0x58
+		{"EOR", absoluteY, c.eor, 3, 4},   // 0x59
+		{"", implied, c.nop, 1, 2},        // 0x5A
+		{"", implied, c.nop, 1, 2},        // 0x5B
+		{"", implied, c.nop, 1, 2},        // 0x5C
+		{"EOR", absoluteX, c.eor, 3, 4},   // 0x5D
+		{"LSR", absoluteX, c.lsr, 3, 7},   // 0x5E
+		{"", implied, c.nop, 1, 2},        // 0x5F
+		{"RTS", implied, c.rts, 1, 6},     // 0x60
+		{"ADC", indirectX, c.adc, 2, 6},   // 0x61
+		{"", implied, c.nop, 1, 2},        // 0x62
+		{"", implied, c.nop, 1, 2},        // 0x63
+		{"", implied, c.nop, 1, 2},        // 0x64
+		{"ADC", zeropage, c.adc, 2, 3},    // 0x65
+		{"ROR", zeropage, c.ror, 2, 5},    // 0x66
+		{"", implied, c.nop, 1, 2},        // 0x67
+		{"PLA", implied, c.pla, 1, 4},     // 0x68
+		{"ADC", immdiate, c.adc, 2, 2},    // 0x69
+		{"ROR", accumulator, c.ror, 1, 2}, // 0x6A
+		{"", implied, c.nop, 1, 2},        // 0x6B
+		{"JMP", indirect, c.jmp, 3, 5},    // 0x6C
+		{"ADC", absolute, c.adc, 3, 4},    // 0x6D
+		{"ROR", absolute, c.ror, 3, 6},    // 0x6E
+		{"", implied, c.nop, 1, 2},        // 0x6F
+		{"BVS", relative, c.bvs, 2, 2},    // 0x70
+		{"ADC", indirectY, c.adc, 2, 5},   // 0x71
+		{"", implied, c.nop, 1, 2},        // 0x72
+		{"", implied, c.nop, 1, 2},        // 0x73
+		{"", implied, c.nop, 1, 2},        // 0x74
+		{"ADC", zeropageX, c.adc, 2, 4},   // 0x75
+		{"ROR", zeropageX, c.ror, 2, 6},   // 0x76
+		{"", implied, c.nop, 1, 2},        // 0x77
+		{"SEI", implied, c.sei, 1, 2},     // 0x78
+		{"ADC", absoluteY, c.adc, 3, 4},   // 0x79
+		{"", implied, c.nop, 1, 2},        // 0x7A
+		{"", implied, c.nop, 1, 2},        // 0x7B
+		{"", implied, c.nop, 1, 2},        // 0x7C
+		{"ADC", absoluteX, c.adc, 3, 4},   // 0x7D
+		{"ROR", absoluteX, c.ror, 3, 7},   // 0x7E
+		{"", implied, c.nop, 1, 2},        // 0x7F
+		{"", implied, c.nop, 1, 2},        // 0x80
+		{"STA", indirectX, c.sta, 2, 6},   // 0x81
+		{"", implied, c.nop, 1, 2},        // 0x82
+		{"", implied, c.nop, 1, 2},        // 0x83
+		{"STY", zeropage, c.sty, 2, 3},    // 0x84
+		{"STA", zeropage, c.sta, 2, 3},    // 0x85
+		{"STX", zeropage, c.stx, 2, 3},    // 0x86
+		{"", implied, c.nop, 1, 2},        // 0x87
+		{"DEY", implied, c.dey, 1, 2},     // 0x88
+		{"", implied, c.nop, 1, 2},        // 0x89
+		{"TXA", implied, c.txa, 1, 2},     // 0x8A
+		{"", implied, c.nop, 1, 2},        // 0x8B
+		{"STY", absolute, c.sty, 3, 4},    // 0x8C
+		{"STA", absolute, c.sta, 3, 4},    // 0x8D
+		{"STX", absolute, c.stx, 3, 4},    // 0x8E
+		{"", implied, c.nop, 1, 2},        // 0x8F
+		{"BCC", relative, c.bcc, 2, 2},    // 0x90
+		{"STA", indirectY, c.sta, 2, 6},   // 0x91
+		{"", implied, c.nop, 1, 2},        // 0x92
+		{"", implied, c.nop, 1, 2},        // 0x93
+		{"STY", zeropageX, c.sty, 2, 4},   // 0x94
+		{"STA", zeropageX, c.sta, 2, 4},   // 0x95
+		{"STX", zeropageY, c.stx, 2, 4},   // 0x96
+		{"", implied, c.nop, 1, 2},        // 0x97
+		{"TYA", implied, c.tya, 1, 2},     // 0x98
+		{"STA", absoluteY, c.sta, 3, 5},   // 0x99
+		{"TSX", implied, c.tsx, 1, 2},     // 0x9A
+		{"", implied, c.nop, 1, 2},        // 0x9B
+		{"", implied, c.nop, 1, 2},        // 0x9C
+		{"STA", absoluteX, c.sta, 3, 5},   // 0x9D
+		{"", implied, c.nop, 1, 2},        // 0x9E
+		{"", implied, c.nop, 1, 2},        // 0x9F
+		{"LDY", immdiate, c.ldy, 2, 2},    // 0xA0
+		{"LDA", indirectX, c.lda, 2, 6},   // 0xA1
+		{"LDX", immdiate, c.ldx, 2, 2},    // 0xA2
+		{"", implied, c.nop, 1, 2},        // 0xA3
+		{"LDY", zeropage, c.ldy, 2, 3},    // 0xA4
+		{"LDA", zeropage, c.lda, 2, 2},    // 0xA5
+		{"LDX", zeropage, c.ldx, 2, 3},    // 0xA6
+		{"", implied, c.nop, 1, 2},        // 0xA7
+		{"TAY", implied, c.tay, 1, 2},     // 0xA8
+		{"LDA", immdiate, c.lda, 2, 2},    // 0xA9
+		{"TAX", implied, c.tax, 1, 2},     // 0xAA
+		{"", implied, c.nop, 1, 2},        // 0xAB
+		{"LDY", absolute, c.ldy, 3, 4},    // 0xAC
+		{"LDA", absolute, c.lda, 3, 4},    // 0xAD
+		{"LDX", absolute, c.ldx, 3, 4},    // 0xAE
+		{"", implied, c.nop, 1, 2},        // 0xAF
+		{"BCS", relative, c.bcs, 2, 2},    // 0xB0
+		{"LDA", indirectY, c.lda, 2, 5},   // 0xB1
+		{"", implied, c.nop, 1, 2},        // 0xB2
+		{"", implied, c.nop, 1, 2},        // 0xB3
+		{"LDX", zeropageX, c.ldx, 2, 4},   // 0xB4
+		{"LDA", zeropageX, c.lda, 2, 4},   // 0xB5
+		{"LDX", zeropageY, c.ldx, 2, 4},   // 0xB6
+		{"", implied, c.nop, 1, 2},        // 0xB7
+		{"CLV", implied, c.clv, 1, 2},     // 0xB8
+		{"LDA", absoluteY, c.lda, 3, 4},   // 0xB9
+		{"TSX", implied, c.tsx, 1, 2},     // 0xBA
+		{"", implied, c.nop, 1, 2},        // 0xBB
+		{"LDY", absoluteX, c.ldy, 3, 4},   // 0xBC
+		{"LDA", absoluteX, c.lda, 3, 4},   // 0xBD
+		{"LDX", absoluteY, c.ldx, 3, 4},   // 0xBE
+		{"", implied, c.nop, 1, 2},        // 0xBF
+		{"CPY", immdiate, c.cpy, 2, 2},    // 0xC0
+		{"CMP", indirectX, c.cmp, 2, 6},   // 0xC1
+		{"", implied, c.nop, 1, 2},        // 0xC2
+		{"", implied, c.nop, 1, 2},        // 0xC3
+		{"CPY", zeropage, c.cpy, 2, 3},    // 0xC4
+		{"CMP", zeropage, c.cmp, 2, 3},    // 0xC5
+		{"DEC", zeropage, c.dec, 2, 5},    // 0xC6
+		{"", implied, c.nop, 1, 2},        // 0xC7
+		{"INY", implied, c.iny, 1, 2},     // 0xC8
+		{"CMP", immdiate, c.cmp, 2, 2},    // 0xC9
+		{"DEX", implied, c.dex, 1, 2},     // 0xCA
+		{"", implied, c.nop, 1, 2},        // 0xCB
+		{"CPY", absolute, c.cpy, 3, 4},    // 0xCC
+		{"CMP", absolute, c.cmp, 3, 4},    // 0xCD
+		{"DEC", absolute, c.dec, 3, 6},    // 0xCE
+		{"", implied, c.nop, 1, 2},        // 0xCF
+		{"BNE", relative, c.bne, 2, 2},    // 0xD0
+		{"CMP", indirectY, c.cmp, 2, 5},   // 0xD1
+		{"", implied, c.nop, 1, 2},        // 0xD2
+		{"", implied, c.nop, 1, 2},        // 0xD3
+		{"", implied, c.nop, 1, 2},        // 0xD4
+		{"CMP", zeropageX, c.cmp, 2, 4},   // 0xD5
+		{"DEC", zeropageX, c.dec, 2, 6},   // 0xD6
+		{"", implied, c.nop, 1, 2},        // 0xD7
+		{"CLD", implied, c.cld, 1, 2},     // 0xD8
+		{"CMP", absoluteY, c.cmp, 3, 4},   // 0xD9
+		{"", implied, c.nop, 1, 2},        // 0xDA
+		{"", implied, c.nop, 1, 2},        // 0xDB
+		{"", implied, c.nop, 1, 2},        // 0xDC
+		{"CMP", absoluteX, c.cmp, 3, 4},   // 0xDD
+		{"DEC", absoluteX, c.dec, 3, 7},   // 0xDE
+		{"", implied, c.nop, 1, 2},        // 0xDF
+		{"CPX", immdiate, c.cpx, 2, 2},    // 0xE0
+		{"SBC", indirectX, c.sbc, 2, 6},   // 0xE1
+		{"", implied, c.nop, 1, 2},        // 0xE2
+		{"", implied, c.nop, 1, 2},        // 0xE3
+		{"CPX", zeropage, c.cpx, 2, 3},    // 0xE4
+		{"SBC", zeropage, c.sbc, 2, 3},    // 0xE5
+		{"INC", zeropage, c.inc, 2, 5},    // 0xE6
+		{"", implied, c.nop, 1, 2},        // 0xE7
+		{"INX", implied, c.inx, 1, 2},     // 0xE8
+		{"SBC", immdiate, c.sbc, 2, 2},    // 0xE9
+		{"NOP", implied, c.nop, 1, 2},     // 0xEA
+		{"", implied, c.nop, 1, 2},        // 0xEB
+		{"CPX", absolute, c.cpx, 3, 4},    // 0xEC
+		{"SBC", absolute, c.sbc, 3, 4},    // 0xED
+		{"INC", absolute, c.inc, 3, 6},    // 0xEE
+		{"", implied, c.nop, 1, 2},        // 0xEF
+		{"BEQ", relative, c.beq, 2, 2},    // 0xF0
+		{"SBC", indirectY, c.sbc, 2, 5},   // 0xF1
+		{"", implied, c.nop, 1, 2},        // 0xF2
+		{"", implied, c.nop, 1, 2},        // 0xF3
+		{"", implied, c.nop, 1, 2},        // 0xF4
+		{"SBC", zeropageX, c.sbc, 2, 4},   // 0xF5
+		{"INC", zeropageX, c.inc, 2, 6},   // 0xF6
+		{"", implied, c.nop, 1, 2},        // 0xF7
+		{"SED", implied, c.sed, 1, 2},     // 0xF8
+		{"SBC", absoluteY, c.sbc, 3, 4},   // 0xF9
+		{"", implied, c.nop, 1, 2},        // 0xFA
+		{"", implied, c.nop, 1, 2},        // 0xFB
+		{"", implied, c.nop, 1, 2},        // 0xFC
+		{"SBC", absoluteX, c.sbc, 3, 4},   // 0xFD
+		{"INC", absoluteX, c.inc, 3, 7},   // 0xFE
+		{"", implied, c.nop, 1, 2},        // 0xFF
 	}
 }
 
@@ -451,7 +451,7 @@ func (c *CPU) and(mode addressingMode, operand uint16) {
 
 // ASL - Arithmetic Shift Left.
 func (c *CPU) asl(mode addressingMode, operand uint16) {
-	if mode == Accumulator {
+	if mode == accumulator {
 		c.P.C = (c.A>>7)&1 == 1
 		c.A <<= 1
 		c.setN(c.A)
@@ -671,7 +671,7 @@ func (c *CPU) ldy(mode addressingMode, operand uint16) {
 
 // LSR - Logical Shift Right.
 func (c *CPU) lsr(mode addressingMode, operand uint16) {
-	if mode == Accumulator {
+	if mode == accumulator {
 		c.P.C = c.A&1 == 1
 		c.A >>= 1
 		c.setN(c.A)
@@ -726,7 +726,7 @@ func (c *CPU) rol(mode addressingMode, operand uint16) {
 	if c.P.C {
 		carry = 1
 	}
-	if mode == Accumulator {
+	if mode == accumulator {
 		c.P.C = (c.A>>7)&1 == 1
 		c.A = (c.A << 1) | carry
 		c.setN(c.A)
@@ -747,7 +747,7 @@ func (c *CPU) ror(mode addressingMode, operand uint16) {
 	if c.P.C {
 		carry = 1
 	}
-	if mode == Accumulator {
+	if mode == accumulator {
 		c.P.C = c.A&1 == 1
 		c.A = (c.A >> 1) | (carry << 7)
 		c.setN(c.A)
@@ -881,21 +881,21 @@ func (c *CPU) Do() int {
 	instruction := c.instructions[opcode]
 	var operand uint16 = 0
 	switch instruction.mode {
-	case Implied:
+	case implied:
 		operand = 0
-	case Accumulator:
+	case accumulator:
 		operand = 0
-	case Immediate:
+	case immdiate:
 		operand = c.PC + 1
-	case Zeropage:
+	case zeropage:
 		operand = uint16(c.bus.read(c.PC + 1))
-	case ZeropageX:
+	case zeropageX:
 		// If the address exceeds 0xFF (page crossed), back to 0x00
 		operand = uint16(c.bus.read(c.PC+1)+c.X) & 0xFF
-	case ZeropageY:
+	case zeropageY:
 		// If the address exceeds 0xFF (page crossed), back to 0x00
 		operand = uint16(c.bus.read(c.PC+1)+c.Y) & 0xFF
-	case Relative:
+	case relative:
 		address := c.bus.read(c.PC + 1)
 		// Relative will look up a signed value
 		// 2 is offset for operand
@@ -904,17 +904,17 @@ func (c *CPU) Do() int {
 		} else {
 			operand = c.PC + 2 + uint16(address) - 0x100
 		}
-	case Absolute:
+	case absolute:
 		operand = c.bus.read16(c.PC + 1)
-	case AbsoluteX:
+	case absoluteX:
 		operand = c.bus.read16(c.PC+1) + uint16(c.X)
-	case AbsoluteY:
+	case absoluteY:
 		operand = c.bus.read16(c.PC+1) + uint16(c.Y)
-	case Indirect:
+	case indirect:
 		operand = c.bus.read16(c.bus.read16(c.PC + 1))
-	case IndirectX:
+	case indirectX:
 		operand = uint16(c.bus.read(c.PC+1)) + uint16(c.X)
-	case IndirectY:
+	case indirectY:
 		operand = uint16(c.bus.read(c.PC+1)) + uint16(c.Y)
 	}
 	c.PC += instruction.size

@@ -155,6 +155,7 @@ func Start(console *nes.Console, width int, height int) {
 				updateTexture(program, image)
 				window.SwapBuffers()
 				glfw.PollEvents()
+				console.Controller.Set(getKeys(window))
 			}
 		}
 	}
