@@ -5,8 +5,8 @@ import "fmt"
 const (
 	chrROMSizeUnit      int  = 0x2000 // 8 bytes
 	prgROMSizeUnit      int  = 0x4000 // 16 bytes
-	InesHeaderSizeBytes int  = 16     // The valid INES header has 16 bytes
-	MSDOSEOF            byte = 0x1A
+	inesHeaderSizeBytes int  = 16     // The valid INES header has 16 bytes
+	msDOSEOF            byte = 0x1A
 )
 
 // https://www.nesdev.org/wiki/INES
@@ -22,11 +22,11 @@ type Cartridge struct {
 
 // IsValid checks whether the cartridge is valid INES format.
 func isValid(data []byte) bool {
-	if len(data) >= InesHeaderSizeBytes &&
+	if len(data) >= inesHeaderSizeBytes &&
 		data[0] == byte('N') &&
 		data[1] == byte('E') &&
 		data[2] == byte('S') &&
-		data[3] == MSDOSEOF {
+		data[3] == msDOSEOF {
 		return true
 	} else {
 		return false
@@ -35,14 +35,14 @@ func isValid(data []byte) bool {
 
 // ReadPRGROM retrieves Program ROM from cartridge.
 func readPRGROM(data []byte) []byte {
-	var l = InesHeaderSizeBytes
-	var r = InesHeaderSizeBytes + int(data[4])*prgROMSizeUnit
+	var l = inesHeaderSizeBytes
+	var r = inesHeaderSizeBytes + int(data[4])*prgROMSizeUnit
 	return data[l:r]
 }
 
 // ReadCHRROM retrieves Character ROM from cartridge.
 func readCHRROM(data []byte) []byte {
-	var l = InesHeaderSizeBytes + int(data[4])*prgROMSizeUnit
+	var l = inesHeaderSizeBytes + int(data[4])*prgROMSizeUnit
 	var r = l + int(data[5])*chrROMSizeUnit
 	return data[l:r]
 }

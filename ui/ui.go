@@ -153,6 +153,7 @@ func Start(console *nes.Console, width int, height int) {
 			prepared, image := console.PPU.Do()
 			if prepared {
 				updateTexture(program, image)
+				console.Controller.Set(getKeys(window))
 				window.SwapBuffers()
 				glfw.PollEvents()
 			}

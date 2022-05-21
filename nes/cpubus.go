@@ -3,9 +3,10 @@ package nes
 import "github.com/golang/glog"
 
 type CPUBus struct {
-	wram      *RAM
-	ppu       *PPU
-	cartridge *Cartridge
+	wram       *RAM
+	ppu        *PPU
+	cartridge  *Cartridge
+	controller *Controller
 }
 
 // NewCPUBus creates a new Bus for CPU.
@@ -19,8 +20,8 @@ type CPUBus struct {
 // 0x6000 - 0x7FFF	Battery Backup RAM
 // 0x8000 - 0xBFFF	ProgramROM Low
 // 0xC000 - 0xFFFF	ProgramROM High
-func NewCPUBus(wram *RAM, ppu *PPU, cartridge *Cartridge) *CPUBus {
-	return &CPUBus{wram, ppu, cartridge}
+func NewCPUBus(wram *RAM, ppu *PPU, cartridge *Cartridge, controller *Controller) *CPUBus {
+	return &CPUBus{wram, ppu, cartridge, controller}
 }
 
 func (b *CPUBus) readPPURegister(address uint16) byte {
@@ -44,6 +45,8 @@ func (b *CPUBus) read(address uint16) byte {
 		return b.wram.read(address - 0x0800)
 	case address < 0x2008:
 		return b.readPPURegister(address)
+	case address == 0x4016: // 1P
+		return b.controller.read()
 	case 0x8000 <= address:
 		return b.cartridge.prgROM[address-0x8000]
 	default:
@@ -82,6 +85,8 @@ func (b *CPUBus) write(address uint16, data byte) {
 		b.wram.write(address-0x0800, data)
 	case address < 0x2008:
 		b.writeToPPURegisters(address, data)
+	case address == 0x4016: // 1P
+		b.controller.write(data)
 	default:
 		glog.Fatalf("Unknown CPU bus write: address=0x%04x, data=0x%02x\n", address, data)
 	}

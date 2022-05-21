@@ -133,7 +133,6 @@ func (p *PPU) getColor(x, y int, v byte) *color.RGBA {
 	var palette byte = 0 // 0, 1, 2 or 3
 	palette |= (attributeTableData >> byte(2*num)) & 1
 	palette |= 1 << ((attributeTableData >> byte(2*num+1)) & 1)
-	// paletteData := p.read(0x3F00 + uint16(palette*4-(4-v)))
 	paletteData := p.paletteRAM[uint16(palette*4-(4-v))]
 	c := colors[paletteData]
 	return &c
