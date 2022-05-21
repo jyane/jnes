@@ -14,10 +14,12 @@ jobs:
       - uses: actions/setup-go@v3
         with:
           go-version: 1.18
-      - name: install
-        run: sudo apt install libgl1-mesa-dev xorg-dev
       - name: go get
         run: go get
+      - name: go fmt
+        run: make fmt && git diff --exit-code
+      - name: install
+        run: sudo apt install libgl1-mesa-dev xorg-dev
       - name: build
         run: make build
       - name: test
