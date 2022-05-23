@@ -3,8 +3,6 @@ package nes
 import (
 	"image"
 	"image/color"
-
-	"github.com/golang/glog"
 )
 
 // NES PPU generates 256x240 pixels.
@@ -57,6 +55,11 @@ type PPU struct {
 	oamData    [256]byte // PPU has internal memory for Object Attribute Memory.
 
 	// Current VRAM address (15bits), for PPUADDR $2006
+	// yyy NN YYYYY XXXXX
+	// ||| || ||||| +++++-- coarse X scroll
+	// ||| || +++++-------- coarse Y scroll
+	// ||| ++-------------- nametable select
+	// +++----------------- fine Y scroll
 	v uint16
 	// Temporary VRAM address (15bits)
 	t uint16
@@ -261,12 +264,6 @@ func (p *PPU) readPPUDATA() byte {
 	return data
 }
 
-// writeOAMDMA writes OAMDMA ($4014).
-func (p *PPU) writeOAMDMA(value byte) {
-	// Implemented on CPU.
-	glog.Infoln("writeOAMDMA called, not implemented.")
-}
-
 func (p *PPU) updateNMI(flag bool) {
 	p.nmiOccurred = flag
 	p.oldNMI = p.nmiOccurred
@@ -313,11 +310,70 @@ func (p *PPU) renderFrame() {
 	}
 }
 
+// Please see https://www.nesdev.org/wiki/PPU_scrolling
+func (p *PPU) incrementCoarseX() {
+	if p.v&0x001F == 31 {
+		p.v &= 0xFFE0
+		p.v ^= 0x0400
+	} else {
+		p.v++
+	}
+}
+
+// Please see https://www.nesdev.org/wiki/PPU_scrolling
+func (p *PPU) copyX() {
+	// v: .... .A.. ...B CDEF <- t: .... .A.. ...BCDEF
+	p.v = (p.v & 0xFBE0) | (p.t & 0x041F)
+}
+
+func (p *PPU) copyY() {
+	// v: GHI A.BC DEF. .... <- t: GHIA.BC DEF.....
+	p.v = (p.v & 0x841F) | (p.t & 0x07BE0)
+}
+
+// Please see https://www.nesdev.org/wiki/PPU_scrolling#Wrapping_around
+func (p *PPU) incrementY() {
+	if (p.v & 0x7000) != 0x7000 {
+		p.v += 0x1000
+	} else {
+		p.v &= 0x8FFF
+		y := (p.v & 0x03E0) >> 5
+		if y == 29 {
+			y = 0
+			p.v ^= 0x0800
+		} else if y == 31 {
+			y = 0
+		} else {
+			y++
+		}
+		p.v = (p.v & 0xFC1F) | (y << 5)
+	}
+}
+
 // Do emulates a cycle of PPU and each cycles renders a pixel for NTSC.
 // Reference:
 //   https://www.nesdev.org/wiki/PPU_rendering
 //   https://www.nesdev.org/wiki/File:Ntsc_timing.png
 func (p *PPU) Do() (bool, *image.RGBA) {
+	if p.showBackgroundFlag {
+		if p.scanline == 261 && 280 <= p.cycle && p.cycle <= 304 {
+			p.copyY()
+		}
+		if p.scanline <= 240 {
+			if p.cycle == 328 || p.cycle == 336 {
+				p.incrementCoarseX()
+			}
+			if 1 <= p.cycle && p.cycle <= 256 && p.cycle%8 == 0 {
+				p.incrementCoarseX()
+			}
+			if p.cycle == 256 {
+				p.incrementY()
+			}
+			if p.cycle == 257 {
+				p.copyX()
+			}
+		}
+	}
 	// TODO(jyane): NMI I'm not sure whether the this logic is correct or not.
 	// set vblank
 	if p.scanline == 241 && p.cycle == 1 {
