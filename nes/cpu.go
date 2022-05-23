@@ -8,6 +8,8 @@ import "github.com/golang/glog"
 //   http://www.6502.org/tutorials/6502opcodes.html
 //   http://hp.vector.co.jp/authors/VA042397/nes/6502.html (In Japanese)
 
+const CPUFrequency = 1789773
+
 type addressingMode int
 
 const (

@@ -124,7 +124,6 @@ func (p *PPU) Reset() {
 
 func (p *PPU) CheckNMI() bool {
 	if p.nmiOutput && p.nmiOccurred {
-		glog.Infoln("NMI happened")
 		return true
 	} else {
 		return false

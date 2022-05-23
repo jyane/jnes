@@ -1,6 +1,8 @@
 package ui
 
 import (
+	"time"
+
 	"github.com/go-gl/gl/v3.3-core/gl"
 	"github.com/go-gl/glfw/v3.3/glfw"
 	"github.com/golang/glog"
@@ -9,23 +11,31 @@ import (
 )
 
 func mainLoop(window *glfw.Window, console *nes.Console, program uint32) {
-	var nmi bool = false
-	for !window.ShouldClose() {
-		cycles := console.CPU.Do(nmi)
-		nmi = false
-		// PPU's clock is 3x faster than CPU's
-		for i := 0; i < cycles*3; i++ {
-			// If PPU prepared an image to render, OpenGL updates a 2D texture.
-			prepared, image := console.PPU.Do()
-			if !nmi && console.PPU.CheckNMI() {
-				nmi = true
+	for range time.Tick(1 * time.Second) {
+		var currentCycles = 0
+		var nmi bool = false
+		for currentCycles < nes.CPUFrequency {
+			cycles := console.CPU.Do(nmi)
+			nmi = false
+			// PPU's clock is 3x faster than CPU's
+			for i := 0; i < cycles*3; i++ {
+				// If PPU prepared an image to render, OpenGL updates a 2D texture.
+				prepared, image := console.PPU.Do()
+				if !nmi && console.PPU.CheckNMI() {
+					nmi = true
+				}
+				// Here will be executed (almost) 60 times per second.
+				if prepared {
+					updateTexture(program, image)
+					window.SwapBuffers()
+					glfw.PollEvents()
+					console.Controller.Set(getKeys(window))
+				}
 			}
-			if prepared {
-				updateTexture(program, image)
-				window.SwapBuffers()
-				glfw.PollEvents()
-				console.Controller.Set(getKeys(window))
-			}
+			currentCycles += cycles
+		}
+		if window.ShouldClose() {
+			return
 		}
 	}
 }
