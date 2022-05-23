@@ -36,6 +36,7 @@ var colors = [64]color.RGBA{
 
 // PPU stands for Picture Processing Unit, renders 256px x 240px image for a screen.
 // PPU is 3x faster than CPU and rendering 1 frame requires 341x262=89342 cycles (Each cycles writes a dot).
+// This implementation emulates NTSC not PAL or other ways.
 //
 // This PPU implementation includes PPU regsters as well.
 // References:
@@ -51,6 +52,7 @@ type PPU struct {
 	//   https://www.nesdev.org/wiki/PPU_registers
 	//   https://www.nesdev.org/wiki/PPU_scrolling
 
+	// oam
 	oamAddress byte
 	oamData    [256]byte // PPU has internal memory for Object Attribute Memory.
 
@@ -64,6 +66,36 @@ type PPU struct {
 	w bool
 	// buffer for PPUDATA $2007
 	buffer byte
+
+	// NMI https://www.nesdev.org/wiki/NMI
+	nmiOccurred bool
+	oldNMI      bool
+	nmiOutput   bool
+
+	// $2000
+	nameTableFlag         byte // 0 = $2000; 1 = $2400; 2 = $2800; 3 = $2C00
+	vramIncrementFlag     byte // 0: add 1, going across; 1: add 32, going down
+	spriteTableFlag       byte // 0: $0000; 1: $1000; ignored in 8x16 mode
+	backgroundTableFlag   byte // 0: $0000; 1: $1000
+	spriteSizeFlag        byte // 0: 8x8 pixels; 1: 8x16 pixels
+	masterSlaveSelectFlag byte // 0: read backdrop from EXT pins; 1: output color on EXT pins
+
+	// $2001
+	grayScale              bool // unused.
+	showLeftBackgroundFlag bool
+	showLeftSpriteFlag     bool
+	showBackgroundFlag     bool
+	showSpriteFlag         bool
+	emphasizeRedFlag       bool // I have no idea about these, probably for PAL not NTSC.
+	emphasizeGreenFlag     bool // Same above.
+	emphasizeBlueFlag      bool // Same above.
+
+	// https://www.nesdev.org/wiki/PPU_sprite_evaluation
+	spriteOverflow byte
+	spriteZeroHit  byte
+
+	// $2002
+	register byte
 
 	// PPU has an internal RAM for palette data.
 	paletteRAM [32]byte
@@ -84,29 +116,60 @@ func NewPPU(bus *PPUBus) *PPU {
 }
 
 func (p *PPU) Reset() {
-	// TODO(jyane): Configure a correct state, I'm not sure where it starts, this may vary.
+	// TODO(jyane): Configure correct state, I'm not sure where it starts, this may vary.
 	// Here just starts from an invisible line.
 	p.cycle = 0
 	p.scanline = 241
 }
 
+func (p *PPU) CheckNMI() bool {
+	if p.nmiOutput && p.nmiOccurred {
+		glog.Infoln("NMI happened")
+		return true
+	} else {
+		return false
+	}
+}
+
 // writePPUCTRL writes PPUCTRL ($2000).
 func (p *PPU) writePPUCTRL(data byte) {
-	// TODO(jyane): impelent
+	p.nameTableFlag = data & 3
+	p.vramIncrementFlag = (data >> 2) & 1
+	p.spriteTableFlag = (data >> 3) & 1
+	p.backgroundTableFlag = (data >> 4) & 1
+	p.spriteSizeFlag = (data >> 5) & 1
+	p.masterSlaveSelectFlag = (data >> 6) & 1
+	p.nmiOutput = (data>>7)&1 == 1
 	// t: ...GH.. ........ <- d: ......GH
 	p.t = (p.t & 0xF3FF) | ((uint16(data) & 0x03) << 10)
 }
 
 // writePPUMASK writes PPUMASK ($2001).
 func (p *PPU) writePPUMASK(data byte) {
-	// TODO(jyane): impelent
+	p.grayScale = data&1 == 1
+	p.showLeftBackgroundFlag = (data>>1)&1 == 1
+	p.showLeftSpriteFlag = (data>>2)&1 == 1
+	p.showBackgroundFlag = (data>>3)&1 == 1
+	p.showSpriteFlag = (data>>4)&1 == 1
+	p.emphasizeRedFlag = (data>>5)&1 == 1
+	p.emphasizeGreenFlag = (data>>6)&1 == 1
+	p.emphasizeBlueFlag = (data>>7)&1 == 1
 }
 
 // readPPUSTATUS reads PPUSTATUS ($2002).
 func (p *PPU) readPPUSTATUS() byte {
-	// TODO(jyane): impelent
+	res := p.register & 0x1F
+	res |= p.spriteOverflow << 5
+	res |= p.spriteZeroHit << 6
+	// Some implementations retrun current NMI but,
+	// "Return old status of NMI_occurred in bit 7, then set NMI_occurred to false."
+	// https://www.nesdev.org/wiki/NMI
+	if p.oldNMI {
+		res |= 1 << 7
+	}
+	p.updateNMI(false)
 	p.w = false
-	return 0
+	return res
 }
 
 // writeOAMADDR writes OAMADDR ($2003).
@@ -116,8 +179,7 @@ func (p *PPU) writeOAMADDR(data byte) {
 
 // readOAMDATA reads OAMDATA ($2004).
 func (p *PPU) readOAMDATA() byte {
-	// TODO(jyane): impelent
-	return 0
+	return p.oamData[p.oamAddress]
 }
 
 // writeOAMDATA writes OAMDATA ($2004).
@@ -174,7 +236,11 @@ func (p *PPU) writePPUDATA(data byte) {
 	} else {
 		p.bus.write(p.v, data)
 	}
-	p.v++
+	if p.vramIncrementFlag == 0 {
+		p.v++
+	} else {
+		p.v += 32
+	}
 }
 
 // readPPUDATA reads PPUDATA ($2007).
@@ -188,13 +254,23 @@ func (p *PPU) readPPUDATA() byte {
 	} else {
 		p.buffer = p.bus.read(p.v)
 	}
-	p.v++
+	if p.vramIncrementFlag == 0 {
+		p.v++
+	} else {
+		p.v += 32
+	}
 	return data
 }
 
 // writeOAMDMA writes OAMDMA ($4014).
 func (p *PPU) writeOAMDMA(value byte) {
+	// Implemented on CPU.
 	glog.Infoln("writeOAMDMA called, not implemented.")
+}
+
+func (p *PPU) updateNMI(flag bool) {
+	p.nmiOccurred = flag
+	p.oldNMI = p.nmiOccurred
 }
 
 func (p *PPU) getColor(x, y int, v byte) *color.RGBA {
@@ -217,7 +293,6 @@ func (p *PPU) getColor(x, y int, v byte) *color.RGBA {
 }
 
 func (p *PPU) renderFrame() {
-	glog.Infoln("rendering frame...")
 	// Looking up NameTable
 	for y := 0; y <= 240; y++ {
 		for x := 0; x <= 256; x++ {
@@ -237,16 +312,22 @@ func (p *PPU) renderFrame() {
 			p.background.SetRGBA(x, y, *p.getColor(x, y, v))
 		}
 	}
-	glog.Infoln("done")
 }
 
-// Do emulates a cycle of PPU and each cycles renders a pixel for NTSC,
-// so PPU renders a pixel (right to left, top to bottom) respectively.
-// PPU renders 256x240 pixels but it actually processes 341x261 area.
+// Do emulates a cycle of PPU and each cycles renders a pixel for NTSC.
 // Reference:
 //   https://www.nesdev.org/wiki/PPU_rendering
 //   https://www.nesdev.org/wiki/File:Ntsc_timing.png
 func (p *PPU) Do() (bool, *image.RGBA) {
+	// TODO(jyane): NMI I'm not sure whether the this logic is correct or not.
+	// set vblank
+	if p.scanline == 241 && p.cycle == 1 {
+		p.updateNMI(true)
+	}
+	// clear vblank
+	if p.scanline == 261 && p.cycle == 1 {
+		p.updateNMI(false)
+	}
 	// tick
 	p.cycle++
 	if p.cycle == 341 { // rendered a line
