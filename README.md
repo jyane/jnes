@@ -17,5 +17,5 @@ OpenGL 3.3
 - [ ] PPU scrolling
 - [ ] CPU runs at accurate cycles
 - [ ] Mappers
-- [ ] FPS can be set as 60
+- [x] FPS limit
 - [ ] Other NameTable Mirroring mode
