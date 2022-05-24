@@ -15,7 +15,7 @@ func TestHelloWorld(t *testing.T) {
 	b, _ := ioutil.ReadAll(f)
 	console := nes.NewConsole(b)
 	for {
-		cycles := console.CPU.Do()
+		cycles := console.CPU.Do(false /* NMI */)
 		for i := 0; i < 3*cycles; i++ {
 			prepared, got := console.PPU.Do()
 			if prepared {

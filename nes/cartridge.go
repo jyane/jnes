@@ -9,6 +9,13 @@ const (
 	msDOSEOF            byte = 0x1A
 )
 
+type tableMirrorMode int
+
+const (
+	horizontal tableMirrorMode = iota
+	vertical
+)
+
 // https://www.nesdev.org/wiki/INES
 type Cartridge struct {
 	prgROM  []byte
@@ -61,4 +68,12 @@ func NewCartridge(data []byte) (*Cartridge, error) {
 	c.flags9 = data[9]
 	c.flags10 = data[10]
 	return c, nil
+}
+
+func (c *Cartridge) getTableMirrorMode() tableMirrorMode {
+	if c.flags6&1 == 1 {
+		return vertical
+	} else {
+		return horizontal
+	}
 }

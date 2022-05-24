@@ -8,6 +8,8 @@ import "github.com/golang/glog"
 //   http://www.6502.org/tutorials/6502opcodes.html
 //   http://hp.vector.co.jp/authors/VA042397/nes/6502.html (In Japanese)
 
+const CPUFrequency = 1789773
+
 type addressingMode int
 
 const (
@@ -86,6 +88,7 @@ type CPU struct {
 	Y            byte    // Index register
 	PC           uint16  // Program counter
 	S            byte    // Stack pointer
+	stall        uint64  // Stall cycles
 	bus          *CPUBus
 	instructions []instruction
 }
@@ -392,6 +395,25 @@ func (c *CPU) Reset() {
 	c.P.decodeFrom(0x24)
 }
 
+// write is for wrapping c.bus.write, because writing oamdma requires some.
+func (c *CPU) write(address uint16, data byte) {
+	// OAMDMA
+	if address == 0x4014 {
+		glog.Infoln("OAMDMA happened")
+		oamData := [256]byte{}
+		offset := uint16(data) << 8
+		for i := 0; i < 256; i++ {
+			oamData[i] = c.bus.read(offset + uint16(i))
+		}
+		c.bus.writeOAMDMA(oamData)
+		// TODO(jyane): this stall value depends on current cycle is even / odd.
+		// should be like "if cycles%2 == 0 ..."
+		c.stall += 514
+	} else {
+		c.bus.write(address, data)
+	}
+}
+
 // setN sets whether the x is negative or positive.
 func (c *CPU) setN(x byte) {
 	c.P.N = x&0x80 != 0
@@ -405,7 +427,7 @@ func (c *CPU) setZ(x byte) {
 // push pushes data to stack.
 // "With the 6502, the stack is always on page one ($100-$1FF) and works top down."
 func (c *CPU) push(x byte) {
-	c.bus.write((0x100 | (uint16(c.S) & 0xFF)), x)
+	c.write((0x100 | (uint16(c.S) & 0xFF)), x)
 	c.S--
 }
 
@@ -460,7 +482,7 @@ func (c *CPU) asl(mode addressingMode, operand uint16) {
 		x := c.bus.read(operand)
 		c.P.C = (x>>7)&1 == 1
 		x <<= 1
-		c.bus.write(operand, x)
+		c.write(operand, x)
 		c.setN(x)
 		c.setZ(x)
 	}
@@ -586,7 +608,7 @@ func (c *CPU) cpy(mode addressingMode, operand uint16) {
 // DEC - Decrement Memory.
 func (c *CPU) dec(mode addressingMode, operand uint16) {
 	x := c.bus.read(operand) - 1 // this won't go negative.
-	c.bus.write(operand, x)
+	c.write(operand, x)
 	c.setN(x)
 	c.setZ(x)
 }
@@ -616,7 +638,7 @@ func (c *CPU) eor(mode addressingMode, operand uint16) {
 func (c *CPU) inc(mode addressingMode, operand uint16) {
 	x := c.bus.read(operand)
 	x--
-	c.bus.write(operand, x)
+	c.write(operand, x)
 	c.setN(x)
 	c.setZ(x)
 }
@@ -680,7 +702,7 @@ func (c *CPU) lsr(mode addressingMode, operand uint16) {
 		x := c.bus.read(operand)
 		c.P.C = x&1 == 1
 		x >>= 1
-		c.bus.write(operand, x)
+		c.write(operand, x)
 		c.setN(x)
 		c.setZ(x)
 	}
@@ -735,7 +757,7 @@ func (c *CPU) rol(mode addressingMode, operand uint16) {
 		x := c.bus.read(operand)
 		c.P.C = (x>>7)&1 == 1
 		x = (x << 1) | carry
-		c.bus.write(operand, x)
+		c.write(operand, x)
 		c.setN(x)
 		c.setZ(x)
 	}
@@ -756,7 +778,7 @@ func (c *CPU) ror(mode addressingMode, operand uint16) {
 		x := c.bus.read(operand)
 		c.P.C = x&1 == 1
 		x = (x >> 1) | (carry << 7)
-		c.bus.write(operand, x)
+		c.write(operand, x)
 		c.setN(x)
 		c.setZ(x)
 	}
@@ -765,15 +787,15 @@ func (c *CPU) ror(mode addressingMode, operand uint16) {
 // RTS - Return from Subroutine.
 func (c *CPU) rts(mode addressingMode, operand uint16) {
 	l := uint16(c.pop())
-	h := uint16(c.pop()) >> 8
-	c.PC = h | l
+	h := uint16(c.pop()) << 8
+	c.PC = (h | l) + 1
 }
 
 // RTI - Return from Interrupt.
 func (c *CPU) rti(mode addressingMode, operand uint16) {
 	c.P.decodeFrom(c.pop())
 	l := uint16(c.pop())
-	h := uint16(c.pop()) >> 8
+	h := uint16(c.pop()) << 8
 	c.PC = h | l
 }
 
@@ -820,17 +842,17 @@ func (c *CPU) sei(mode addressingMode, operand uint16) {
 
 // STA - Store A Register.
 func (c *CPU) sta(mode addressingMode, operand uint16) {
-	c.bus.write(operand, c.A)
+	c.write(operand, c.A)
 }
 
 // STX - Store X Register.
 func (c *CPU) stx(mode addressingMode, operand uint16) {
-	c.bus.write(operand, c.X)
+	c.write(operand, c.X)
 }
 
 // STY - Store Y Register.
 func (c *CPU) sty(mode addressingMode, operand uint16) {
-	c.bus.write(operand, c.Y)
+	c.write(operand, c.Y)
 }
 
 // TAX - Transfer A to X.
@@ -875,8 +897,27 @@ func (c *CPU) tya(mode addressingMode, operand uint16) {
 	c.setZ(c.Y)
 }
 
+// NMI is non-maskable interrupt, this will be trigered by PPU.
+func (c *CPU) nmi() {
+	c.push(byte(c.PC>>8) & 0xFF)
+	c.push(byte(c.PC & 0xFF))
+	c.push(c.P.encode())
+	c.PC = c.bus.read16(0xFFFA)
+	c.P.I = true
+}
+
 // Do performs the instruction cycle - fetch, decode, execute.
-func (c *CPU) Do() int {
+func (c *CPU) Do(nmi bool) int {
+	// Running stall cycles.
+	if 0 < c.stall {
+		c.stall--
+		return 1
+	}
+	// Non-maskable interrupt.
+	if nmi {
+		c.nmi()
+		return 7
+	}
 	opcode := c.bus.read(c.PC)
 	instruction := c.instructions[opcode]
 	var operand uint16 = 0
