@@ -45,7 +45,7 @@ type PPU struct {
 
 	background *image.RGBA
 
-	// Registers for PPU.
+	// Registers and temp data for PPU.
 	// Reference:
 	//   https://www.nesdev.org/wiki/PPU_registers
 	//   https://www.nesdev.org/wiki/PPU_scrolling
@@ -103,6 +103,14 @@ type PPU struct {
 	// PPU has an internal RAM for palette data.
 	paletteRAM [32]byte
 
+	// temp variables for rendering.
+	nameTableByte      byte
+	attributeTableByte byte
+	lowTileByte        byte
+	highTileByte       byte
+	// PPU fetches data for rendering before 2 "fetch cycles".
+	tempTileData [6]byte
+
 	// cycle, scanline indicates which pixel is processing.
 	cycle    int
 	scanline int
@@ -120,7 +128,7 @@ func NewPPU(bus *PPUBus) *PPU {
 
 func (p *PPU) Reset() {
 	// TODO(jyane): Configure correct state, I'm not sure where it starts, this may vary.
-	// Here just starts from an invisible line.
+	// Here just starts from vblank.
 	p.cycle = 0
 	p.scanline = 241
 }
@@ -163,7 +171,7 @@ func (p *PPU) readPPUSTATUS() byte {
 	res := p.register & 0x1F
 	res |= p.spriteOverflow << 5
 	res |= p.spriteZeroHit << 6
-	// Some implementations retrun current NMI but,
+	// Some implementations retrun current NMI, but as per nesdev:
 	// "Return old status of NMI_occurred in bit 7, then set NMI_occurred to false."
 	// https://www.nesdev.org/wiki/NMI
 	if p.oldNMI {
@@ -248,7 +256,7 @@ func (p *PPU) writePPUDATA(data byte) {
 // readPPUDATA reads PPUDATA ($2007).
 func (p *PPU) readPPUDATA() byte {
 	data := p.bus.read(p.v)
-	// Here buffers if the address is not paletteRAM.
+	// Here buffers data if the address is not paletteRAM, because paletteRAM access is faster than bus access.
 	if p.v < 0x3F00 {
 		buffered := p.buffer
 		p.buffer = data
@@ -269,10 +277,9 @@ func (p *PPU) updateNMI(flag bool) {
 	p.oldNMI = p.nmiOccurred
 }
 
+// TODO(jyane): refactor this.
 func (p *PPU) getColor(x, y int, v byte) *color.RGBA {
-	attributeTileY := y / 16
-	attributeTileX := x / 16
-	attributeTableData := p.bus.read(0x23C0 + uint16(attributeTileY)*15 + uint16(attributeTileX))
+	attributeTableData := p.tempTileData[3]
 	var num byte = 0
 	if y%16 > 8 {
 		num |= 0b10
@@ -284,30 +291,8 @@ func (p *PPU) getColor(x, y int, v byte) *color.RGBA {
 	palette |= (attributeTableData >> byte(2*num)) & 1
 	palette |= 1 << ((attributeTableData >> byte(2*num+1)) & 1)
 	paletteData := p.paletteRAM[uint16(palette*4-(4-v))]
-	c := colors[paletteData]
+	c := colors[paletteData%64]
 	return &c
-}
-
-func (p *PPU) renderFrame() {
-	// Looking up NameTable
-	for y := 0; y <= 240; y++ {
-		for x := 0; x <= 256; x++ {
-			tileY := y / 8
-			tileX := x / 8
-			nameTableAddress := 0x2000 + tileY*32 + tileX
-			sprite := p.bus.read(uint16(nameTableAddress))
-			lowTileAddress := uint16(sprite) * 16
-			highTileAddress := uint16(sprite)*16 + 8
-			var v byte
-			for i := 0; i < 8; i++ {
-				yy := y % 8
-				lv := (p.bus.read(uint16(lowTileAddress + uint16(yy)))) >> (8 - (x % 8)) & 1
-				hv := (p.bus.read(uint16(highTileAddress + uint16(yy)))) >> (8 - (x % 8)) & 1
-				v = lv + hv
-			}
-			p.background.SetRGBA(x, y, *p.getColor(x, y, v))
-		}
-	}
 }
 
 // Please see https://www.nesdev.org/wiki/PPU_scrolling
@@ -328,7 +313,7 @@ func (p *PPU) copyX() {
 
 func (p *PPU) copyY() {
 	// v: GHI A.BC DEF. .... <- t: GHIA.BC DEF.....
-	p.v = (p.v & 0x841F) | (p.t & 0x07BE0)
+	p.v = (p.v & 0x841F) | (p.t & 0x7BE0)
 }
 
 // Please see https://www.nesdev.org/wiki/PPU_scrolling#Wrapping_around
@@ -350,20 +335,54 @@ func (p *PPU) incrementY() {
 	}
 }
 
+func (p *PPU) fetchLowTileByte() {
+	fineY := (p.v >> 12) & 0b111
+	address := 0x1000*uint16(p.backgroundTableFlag) + uint16(p.nameTableByte)*16 + fineY
+	p.lowTileByte = p.bus.read(address)
+}
+
+func (p *PPU) fetchHighTileByte() {
+	fineY := (p.v >> 12) & 0b111
+	address := 0x1000*uint16(p.backgroundTableFlag) + uint16(p.nameTableByte)*16 + fineY + 8
+	p.highTileByte = p.bus.read(address)
+}
+
+// Address calc from https://www.nesdev.org/wiki/PPU_scrolling
+func (p *PPU) fetchAttributeTableByte() {
+	address := 0x23C0 | (p.v & 0x0C00) | ((p.v >> 4) & 0x38) | ((p.v >> 2) & 0x07)
+	p.attributeTableByte = p.bus.read(address)
+}
+
+// Address calc from https://www.nesdev.org/wiki/PPU_scrolling
+func (p *PPU) fetchNameTableByte() {
+	p.nameTableByte = p.bus.read(0x2000 | (p.v & 0x0FFF))
+}
+
+func (p *PPU) renderPixel() {
+	x := p.cycle - 1 // cycle 0 won't be rendered
+	y := p.scanline
+	lv := p.tempTileData[4] >> (8 - (x % 8)) & 1 // low tile
+	hv := p.tempTileData[5] >> (8 - (x % 8)) & 1 // high tile
+	p.background.SetRGBA(x, y, *p.getColor(x, y, lv+hv))
+}
+
 // Do emulates a cycle of PPU and each cycles renders a pixel for NTSC.
 // Reference:
 //   https://www.nesdev.org/wiki/PPU_rendering
 //   https://www.nesdev.org/wiki/File:Ntsc_timing.png
 func (p *PPU) Do() (bool, *image.RGBA) {
 	if p.showBackgroundFlag {
+		if 1 <= p.cycle && p.cycle <= 256 && p.scanline <= 239 {
+			p.renderPixel()
+		}
 		if p.scanline == 261 && 280 <= p.cycle && p.cycle <= 304 {
 			p.copyY()
 		}
-		if p.scanline <= 240 {
-			if p.cycle == 328 || p.cycle == 336 {
+		if p.scanline < 240 || p.scanline == 261 {
+			if 1 <= p.cycle && p.cycle <= 256 && p.cycle%8 == 0 {
 				p.incrementCoarseX()
 			}
-			if 1 <= p.cycle && p.cycle <= 256 && p.cycle%8 == 0 {
+			if p.cycle == 328 || p.cycle == 336 {
 				p.incrementCoarseX()
 			}
 			if p.cycle == 256 {
@@ -372,9 +391,30 @@ func (p *PPU) Do() (bool, *image.RGBA) {
 			if p.cycle == 257 {
 				p.copyX()
 			}
+			if (0 < p.cycle && p.cycle <= 257) || 320 < p.cycle {
+				switch p.cycle % 8 {
+				case 0:
+					// PPU fetches tile data for current cycle "2 fetch cycles before".
+					// Here stores current cycle data for after the next.
+					p.tempTileData[3] = p.tempTileData[0] // attributeTableByte
+					p.tempTileData[4] = p.tempTileData[1] // lowTileByte
+					p.tempTileData[5] = p.tempTileData[2] // highTileByte
+					p.tempTileData[0] = p.attributeTableByte
+					p.tempTileData[1] = p.lowTileByte
+					p.tempTileData[2] = p.highTileByte
+				case 1:
+					p.fetchNameTableByte()
+				case 3:
+					p.fetchAttributeTableByte()
+				case 5:
+					p.fetchLowTileByte()
+				case 7:
+					p.fetchHighTileByte()
+				}
+			}
 		}
 	}
-	// TODO(jyane): NMI I'm not sure whether the this logic is correct or not.
+	// TODO(jyane): NMI, I'm not sure whether this logic is correct or not.
 	// set vblank
 	if p.scanline == 241 && p.cycle == 1 {
 		p.updateNMI(true)
@@ -385,14 +425,17 @@ func (p *PPU) Do() (bool, *image.RGBA) {
 	}
 	// tick
 	p.cycle++
-	if p.cycle == 341 { // rendered a line
+	if p.cycle == 341 {
 		p.cycle = 0
 		p.scanline++
-		if p.scanline == 261 { // rendered a frame
+		if p.scanline == 262 {
 			p.scanline = 0
-			p.renderFrame()
-			return true, p.background
 		}
 	}
-	return false, nil
+	// immediately returns the image once PPU prepared a frame.
+	if p.cycle == 257 && p.scanline == 239 {
+		return true, p.background
+	} else {
+		return false, nil
+	}
 }

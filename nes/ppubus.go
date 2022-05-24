@@ -12,7 +12,8 @@ func NewPPUBus(vram *RAM, cartridge *Cartridge) *PPUBus {
 	return &PPUBus{vram, cartridge}
 }
 
-var offsets = []uint16{0x0800, 0x0400}
+// horizontal, vertical
+var offsets = []uint16{0x0400, 0x0800}
 
 func (b *PPUBus) mirrorAddress(address uint16) uint16 {
 	mode := b.cartridge.getTableMirrorMode()
@@ -41,10 +42,10 @@ func (b *PPUBus) read(address uint16) byte {
 	case address < 0x2000:
 		return b.cartridge.chrROM[address]
 	case address < 0x3000:
-		return b.vram.read(b.mirrorAddress(address))
+		return b.vram.read(b.mirrorAddress(address) % 2048)
 	case address < 0x3F00:
 		// Mirror
-		return b.vram.read(b.mirrorAddress(address) - 0x1000)
+		return b.vram.read((b.mirrorAddress(address) - 0x1000) % 2048)
 	default:
 		glog.Fatalf("Unknown PPU bus read: 0x%04x\n", address)
 	}
@@ -58,10 +59,10 @@ func (b *PPUBus) write(address uint16, data byte) {
 	case address < 0x2000:
 		return
 	case address < 0x3000:
-		b.vram.write(b.mirrorAddress(address), data)
+		b.vram.write(b.mirrorAddress(address)%2048, data)
 	case address < 0x3F00:
 		// Mirror
-		b.vram.write(b.mirrorAddress(address)-0x1000, data)
+		b.vram.write((b.mirrorAddress(address)-0x1000)%2048, data)
 	default:
 		glog.Fatalf("Unknown PPU bus write: address=0x%04x, data=0x%02x\n", address, data)
 	}
