@@ -34,6 +34,7 @@ func (c *Controller) Set(buttons [8]bool) {
 func (c *Controller) read() byte {
 	c.index++
 	if c.index == 8 {
+		c.index = 0
 		return 0
 	}
 	if c.buttons[c.index] {
