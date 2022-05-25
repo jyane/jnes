@@ -6,7 +6,8 @@ OpenGL 3.3
 ## TODO
 - [x] Hello, World!
   - http://hp.vector.co.jp/authors/VA042397/nes/sample.html
-- [ ] Test
+- [X] Test
+- [x] Debugger
 - [ ] APU
 - [ ] Controller
   - [x] 1P

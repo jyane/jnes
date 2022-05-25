@@ -18,6 +18,7 @@ var (
 	width      = flag.Int("width", 256*4, "widow width")
 	height     = flag.Int("height", 240*4, "widow height")
 	cpuprofile = flag.String("cpuprofile", "", "write cpu profile to file")
+	debug      = flag.Bool("debug", false, "run as debug mode")
 )
 
 // readFile reads file as bytes
@@ -55,6 +56,6 @@ func main() {
 	if err != nil {
 		glog.Fatalln("Failed to read: " + *path)
 	}
-	console := nes.NewConsole(buf)
+	console := nes.NewConsole(buf, *debug)
 	ui.Start(console, *width, *height)
 }
