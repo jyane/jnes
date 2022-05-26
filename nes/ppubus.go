@@ -13,7 +13,7 @@ func NewPPUBus(vram *RAM, cartridge *Cartridge) *PPUBus {
 }
 
 // horizontal, vertical
-var offsets = []uint16{0x0400, 0x0800}
+var offsets = []uint16{0x0800, 0x0400}
 
 func (b *PPUBus) mirrorAddress(address uint16) uint16 {
 	mode := b.cartridge.getTableMirrorMode()
