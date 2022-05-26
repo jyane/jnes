@@ -239,37 +239,47 @@ func (p *PPU) writePPUADDR(data byte) {
 }
 
 // writePPUDATA writes PPUDATA ($2007).
-func (p *PPU) writePPUDATA(data byte) {
+func (p *PPU) writePPUDATA(data byte) error {
 	// writing to paletteRAM
 	if 0x3F00 <= p.v {
 		p.paletteRAM[(p.v-0x3F00)%32] = data
 	} else {
-		p.bus.write(p.v, data)
+		if err := p.bus.write(p.v, data); err != nil {
+			return err
+		}
 	}
 	if p.vramIncrementFlag == 0 {
 		p.v++
 	} else {
 		p.v += 32
 	}
+	return nil
 }
 
 // readPPUDATA reads PPUDATA ($2007).
-func (p *PPU) readPPUDATA() byte {
-	data := p.bus.read(p.v)
+func (p *PPU) readPPUDATA() (byte, error) {
+	data, err := p.bus.read(p.v)
+	if err != nil {
+		return 0, err
+	}
 	// Here buffers data if the address is not paletteRAM, because paletteRAM access is faster than bus access.
 	if p.v < 0x3F00 {
 		buffered := p.buffer
 		p.buffer = data
 		data = buffered
 	} else {
-		p.buffer = p.bus.read(p.v)
+		buf, err := p.bus.read(p.v)
+		if err != nil {
+			return 0, err
+		}
+		p.buffer = buf
 	}
 	if p.vramIncrementFlag == 0 {
 		p.v++
 	} else {
 		p.v += 32
 	}
-	return data
+	return data, nil
 }
 
 func (p *PPU) updateNMI(flag bool) {
@@ -335,27 +345,47 @@ func (p *PPU) incrementY() {
 	}
 }
 
-func (p *PPU) fetchLowTileByte() {
+func (p *PPU) fetchLowTileByte() error {
 	fineY := (p.v >> 12) & 0b111
 	address := 0x1000*uint16(p.backgroundTableFlag) + uint16(p.nameTableByte)*16 + fineY
-	p.lowTileByte = p.bus.read(address)
+	data, err := p.bus.read(address)
+	if err != nil {
+		return err
+	}
+	p.lowTileByte = data
+	return nil
 }
 
-func (p *PPU) fetchHighTileByte() {
+func (p *PPU) fetchHighTileByte() error {
 	fineY := (p.v >> 12) & 0b111
 	address := 0x1000*uint16(p.backgroundTableFlag) + uint16(p.nameTableByte)*16 + fineY + 8
-	p.highTileByte = p.bus.read(address)
+	data, err := p.bus.read(address)
+	if err != nil {
+		return err
+	}
+	p.highTileByte = data
+	return nil
 }
 
 // Address calc from https://www.nesdev.org/wiki/PPU_scrolling
-func (p *PPU) fetchAttributeTableByte() {
+func (p *PPU) fetchAttributeTableByte() error {
 	address := 0x23C0 | (p.v & 0x0C00) | ((p.v >> 4) & 0x38) | ((p.v >> 2) & 0x07)
-	p.attributeTableByte = p.bus.read(address)
+	data, err := p.bus.read(address)
+	if err != nil {
+		return err
+	}
+	p.attributeTableByte = data
+	return nil
 }
 
 // Address calc from https://www.nesdev.org/wiki/PPU_scrolling
-func (p *PPU) fetchNameTableByte() {
-	p.nameTableByte = p.bus.read(0x2000 | (p.v & 0x0FFF))
+func (p *PPU) fetchNameTableByte() error {
+	data, err := p.bus.read(0x2000 | (p.v & 0x0FFF))
+	if err != nil {
+		return err
+	}
+	p.nameTableByte = data
+	return nil
 }
 
 func (p *PPU) renderPixel() {
@@ -370,7 +400,7 @@ func (p *PPU) renderPixel() {
 // Reference:
 //   https://www.nesdev.org/wiki/PPU_rendering
 //   https://www.nesdev.org/wiki/File:Ntsc_timing.png
-func (p *PPU) Do() bool {
+func (p *PPU) Do() (bool, error) {
 	if p.showBackgroundFlag {
 		if 1 <= p.cycle && p.cycle <= 256 && p.scanline <= 239 {
 			p.renderPixel()
@@ -403,13 +433,21 @@ func (p *PPU) Do() bool {
 					p.tempTileData[1] = p.lowTileByte
 					p.tempTileData[2] = p.highTileByte
 				case 1:
-					p.fetchNameTableByte()
+					if err := p.fetchNameTableByte(); err != nil {
+						return false, err
+					}
 				case 3:
-					p.fetchAttributeTableByte()
+					if err := p.fetchAttributeTableByte(); err != nil {
+						return false, err
+					}
 				case 5:
-					p.fetchLowTileByte()
+					if err := p.fetchLowTileByte(); err != nil {
+						return false, err
+					}
 				case 7:
-					p.fetchHighTileByte()
+					if err := p.fetchHighTileByte(); err != nil {
+						return false, err
+					}
 				}
 			}
 		}
@@ -433,8 +471,8 @@ func (p *PPU) Do() bool {
 		}
 	}
 	if p.nmiOutput && p.nmiOccurred {
-		return true
+		return true, nil
 	} else {
-		return false
+		return false, nil
 	}
 }

@@ -16,7 +16,7 @@ func TestHelloWorld(t *testing.T) {
 	console := nes.NewConsole(b, false /* debug */)
 	for {
 		console.Step()
-		ok, got := console.Frame()
+		got, ok := console.Frame()
 		if ok {
 			r, _ := os.Open("helloworld.png")
 			defer r.Close()
