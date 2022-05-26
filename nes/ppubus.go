@@ -1,6 +1,6 @@
 package nes
 
-import "github.com/golang/glog"
+import "fmt"
 
 type PPUBus struct {
 	vram      *RAM
@@ -37,33 +37,33 @@ func (b *PPUBus) mirrorAddress(address uint16) uint16 {
 // $3F00-$3F1F	  $0020	  Palette RAM indexes
 // $3F20-$3FFF	  $00E0	  Mirrors of $3F00-$3F1F
 // Reference: https://www.nesdev.org/wiki/PPU_memory_map
-func (b *PPUBus) read(address uint16) byte {
+func (b *PPUBus) read(address uint16) (byte, error) {
 	switch {
 	case address < 0x2000:
-		return b.cartridge.chrROM[address]
+		return b.cartridge.chrROM[address], nil
 	case address < 0x3000:
-		return b.vram.read(b.mirrorAddress(address) % 2048)
+		return b.vram.read(b.mirrorAddress(address) % 2048), nil
 	case address < 0x3F00:
 		// Mirror
-		return b.vram.read((b.mirrorAddress(address) - 0x1000) % 2048)
+		return b.vram.read((b.mirrorAddress(address) - 0x1000) % 2048), nil
 	default:
-		glog.Fatalf("Unknown PPU bus read: 0x%04x\n", address)
+		return 0, fmt.Errorf("Unknown PPU bus read: 0x%04x", address)
 	}
-	return 0
 }
 
 // write writes data.
 // Reference: https://www.nesdev.org/wiki/PPU_memory_map
-func (b *PPUBus) write(address uint16, data byte) {
+func (b *PPUBus) write(address uint16, data byte) error {
 	switch {
 	case address < 0x2000:
-		return
+		return fmt.Errorf("Writing data to pattern tables not allowed, address=0x%04x, data=0x%02x", address, data)
 	case address < 0x3000:
 		b.vram.write(b.mirrorAddress(address)%2048, data)
 	case address < 0x3F00:
 		// Mirror
 		b.vram.write((b.mirrorAddress(address)-0x1000)%2048, data)
 	default:
-		glog.Fatalf("Unknown PPU bus write: address=0x%04x, data=0x%02x\n", address, data)
+		return fmt.Errorf("Unknown PPU bus write: address=0x%04x, data=0x%02x", address, data)
 	}
+	return nil
 }

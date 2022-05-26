@@ -14,8 +14,11 @@ func mainLoop(window *glfw.Window, console nes.Console, program uint32) {
 	for range time.Tick(1 * time.Second) {
 		currentCycles := 0
 		for currentCycles < nes.CPUFrequency {
-			cycles := console.Step()
-			ok, frame := console.Frame()
+			cycles, err := console.Step()
+			if err != nil {
+				glog.Fatalln(err)
+			}
+			frame, ok := console.Frame()
 			if ok {
 				updateTexture(program, frame)
 				window.SwapBuffers()

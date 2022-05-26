@@ -12,9 +12,9 @@ import (
 )
 
 type Console interface {
-	Reset()
-	Step() int
-	Frame() (bool, *image.RGBA)
+	Reset() error
+	Step() (int, error)
+	Frame() (*image.RGBA, bool)
 	SetButtons([8]bool)
 }
 
@@ -44,19 +44,28 @@ func NewConsole(buf []byte, debug bool) Console {
 	}
 }
 
-func (c *NesConsole) Reset() {
+func (c *NesConsole) Reset() error {
 	c.currentFrame = 0
 	c.lastFrame = 0
-	c.CPU.Reset()
+	if err := c.CPU.Reset(); err != nil {
+		return err
+	}
 	c.PPU.Reset()
+	return nil
 }
 
 // Step executes a CPU step and returns how many cycles are consumed.
-func (c *NesConsole) Step() int {
-	cycles := c.CPU.Do()
+func (c *NesConsole) Step() (int, error) {
+	cycles, err := c.CPU.Do()
+	if err != nil {
+		return cycles, err
+	}
 	// PPU's clock is exactly 3x faster than CPU's
 	for i := 0; i < cycles*3; i++ {
-		nmi := c.PPU.Do()
+		nmi, err := c.PPU.Do()
+		if err != nil {
+			return cycles, err
+		}
 		if nmi {
 			c.CPU.nmiTriggered = true
 		}
@@ -66,16 +75,16 @@ func (c *NesConsole) Step() int {
 			c.buffer = f
 		}
 	}
-	return cycles
+	return cycles, nil
 }
 
 // Frame returns a new frame.
-func (c *NesConsole) Frame() (bool, *image.RGBA) {
+func (c *NesConsole) Frame() (*image.RGBA, bool) {
 	if c.lastFrame < c.currentFrame {
 		c.lastFrame = c.currentFrame
-		return true, c.buffer
+		return c.buffer, true
 	} else {
-		return false, c.buffer
+		return c.buffer, false
 	}
 }
 
@@ -102,17 +111,26 @@ type DebugConsole struct {
 	buffer       *image.RGBA
 }
 
-func (c *DebugConsole) Reset() {
+func (c *DebugConsole) Reset() error {
 	c.lastFrame = 0
 	c.currentFrame = 0
-	c.CPU.Reset()
+	if err := c.CPU.Reset(); err != nil {
+		return err
+	}
 	c.PPU.Reset()
+	return nil
 }
 
-func (c *DebugConsole) step() int {
-	cycles := c.CPU.Do()
+func (c *DebugConsole) step() (int, error) {
+	cycles, err := c.CPU.Do()
+	if err != nil {
+		return cycles, err
+	}
 	for i := 0; i < cycles*3; i++ {
-		nmi := c.PPU.Do()
+		nmi, err := c.PPU.Do()
+		if err != nil {
+			return cycles, err
+		}
 		if nmi {
 			c.CPU.nmiTriggered = true
 		}
@@ -122,10 +140,11 @@ func (c *DebugConsole) step() int {
 			c.buffer = f
 		}
 	}
-	return cycles
+	return cycles, nil
 }
 
 func (c *DebugConsole) basePrint() {
+	fmt.Println("--------------------------------------------------")
 	fmt.Printf("Rendered frame: %d\n", c.currentFrame)
 	fmt.Println("Last exec: " + c.CPU.lastExecution)
 	fmt.Printf("CPU: PC=0x%04x, A=0x%02x, X=0x%02x, Y=0x%02x, S=0x%02x\n",
@@ -155,7 +174,7 @@ func (c *DebugConsole) printCommand(args []string) {
 	}
 }
 
-func (c *DebugConsole) stepCommand(args []string) int {
+func (c *DebugConsole) stepCommand(args []string) (int, error) {
 	if len(args) < 2 {
 		return c.step()
 	} else {
@@ -163,27 +182,42 @@ func (c *DebugConsole) stepCommand(args []string) int {
 		if re.MatchString(args[1]) {
 			num, _ := strconv.Atoi(re.FindString(args[1]))
 			unit := args[1][len(args[1])-1]
+			cycles := 0
 			switch unit {
 			case 's':
 				// s means seconds but this doesn't execute 1 sec, this executes CPUFrequency * num
 				// This will be 60 * num frames execution.
 				steps := CPUFrequency * num
-				cycles := 0
 				for cycles < steps {
-					cycles += c.step()
+					c, err := c.step()
+					if err != nil {
+						return cycles, err
+					}
+					cycles += c
 				}
-				return cycles
-			default: // no unit -> step
-				cycles := 0
+			case 'd':
+				// debug -> steps with debug messages.
 				for i := 0; i < num; i++ {
-					cycles += c.step()
+					v, err := c.step()
+					c.basePrint()
+					if err != nil {
+						return cycles, err
+					}
+					cycles += v
 				}
-				return cycles
+			default: // no unit -> step
+				for i := 0; i < num; i++ {
+					v, err := c.step()
+					if err != nil {
+						return cycles, err
+					}
+					cycles += v
+				}
 			}
+			return cycles, nil
 		}
 	}
-	// ?
-	return 0
+	return 0, nil
 }
 
 func (c *DebugConsole) quitCommand() {
@@ -191,7 +225,7 @@ func (c *DebugConsole) quitCommand() {
 	os.Exit(0)
 }
 
-func (c *DebugConsole) Step() int {
+func (c *DebugConsole) Step() (int, error) {
 	fmt.Printf("Debugger mode, 'q' to quit -----------------------------------------------\n>> ")
 	in := bufio.NewReader(os.Stdin)
 	line, err := in.ReadString('\n')
@@ -205,10 +239,13 @@ func (c *DebugConsole) Step() int {
 	case "p", "print":
 		c.printCommand(args)
 	case "s", "step":
-		cycles := c.stepCommand(args)
-		c.basePrint()
+		cycles, err := c.stepCommand(args)
+		c.basePrint() // Print data before it die.
+		if err != nil {
+			return cycles, err
+		}
 		fmt.Printf("Executed %d CPU cycles, %d PPU cycles.\n", cycles, 3*cycles)
-		return cycles
+		return cycles, nil
 	case "r", "reset":
 		c.Reset()
 	case "q", "quit":
@@ -217,15 +254,15 @@ func (c *DebugConsole) Step() int {
 		fmt.Printf("Unkonwn command %s\n", line)
 	}
 	// step command was not executed.
-	return 0
+	return 0, nil
 }
 
-func (c *DebugConsole) Frame() (bool, *image.RGBA) {
+func (c *DebugConsole) Frame() (*image.RGBA, bool) {
 	if c.lastFrame < c.currentFrame {
 		c.lastFrame = c.currentFrame
-		return true, c.buffer
+		return c.buffer, true
 	} else {
-		return false, c.buffer
+		return c.buffer, false
 	}
 }
 
