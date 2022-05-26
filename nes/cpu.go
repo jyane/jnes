@@ -1,6 +1,6 @@
 package nes
 
-import "github.com/golang/glog"
+import "fmt"
 
 // CPU emulates NES CPU - is custom 6502 made by RICOH.
 // References:
@@ -82,15 +82,17 @@ func (s *status) decodeFrom(data byte) {
 }
 
 type CPU struct {
-	P            *status // Processor status flag bits
-	A            byte    // Accumulator register
-	X            byte    // Index register
-	Y            byte    // Index register
-	PC           uint16  // Program counter
-	S            byte    // Stack pointer
-	stall        uint64  // Stall cycles
-	bus          *CPUBus
-	instructions []instruction
+	P             *status // Processor status flag bits
+	A             byte    // Accumulator register
+	X             byte    // Index register
+	Y             byte    // Index register
+	PC            uint16  // Program counter
+	S             byte    // Stack pointer
+	lastExecution string  // For debug
+	stall         uint64  // Stall cycles
+	bus           *CPUBus
+	instructions  []instruction
+	nmiTriggered  bool
 }
 
 type instruction struct {
@@ -389,7 +391,6 @@ func NewCPU(bus *CPUBus) *CPU {
 
 // Reset does reset.
 func (c *CPU) Reset() {
-	glog.Infoln("CPU Reset!")
 	c.PC = c.bus.read16(0xFFFC)
 	c.S = 0xFD
 	c.P.decodeFrom(0x24)
@@ -399,7 +400,6 @@ func (c *CPU) Reset() {
 func (c *CPU) write(address uint16, data byte) {
 	// OAMDMA
 	if address == 0x4014 {
-		glog.Infoln("OAMDMA happened")
 		oamData := [256]byte{}
 		offset := uint16(data) << 8
 		for i := 0; i < 256; i++ {
@@ -907,15 +907,18 @@ func (c *CPU) nmi() {
 }
 
 // Do performs the instruction cycle - fetch, decode, execute.
-func (c *CPU) Do(nmi bool) int {
+func (c *CPU) Do() int {
 	// Running stall cycles.
 	if 0 < c.stall {
 		c.stall--
+		c.lastExecution = fmt.Sprintf("CPU stall, PC=0x%04x, A=0x%02x, X=0x%02x, Y=0x%02x, S=0x%02x", c.PC, c.A, c.X, c.Y, c.S)
 		return 1
 	}
 	// Non-maskable interrupt.
-	if nmi {
+	if c.nmiTriggered {
 		c.nmi()
+		c.nmiTriggered = false
+		c.lastExecution = fmt.Sprintf("NMI, PC=0x%04x, A=0x%02x, X=0x%02x, Y=0x%02x, S=0x%02x", c.PC, c.A, c.X, c.Y, c.S)
 		return 7
 	}
 	opcode := c.bus.read(c.PC)
@@ -959,7 +962,8 @@ func (c *CPU) Do(nmi bool) int {
 		operand = uint16(c.bus.read(c.PC+1)) + uint16(c.Y)
 	}
 	c.PC += instruction.size
-	glog.V(1).Infof("PC: 0x%04x, A: 0x%02x, X: 0x%02x, Y: 0x%02x, S: 0x%02x opcode: 0x%02x, mnemonic: %s, operand: 0x%04x\n",
+	// Saves debug string.
+	c.lastExecution = fmt.Sprintf("PC=0x%04x, A=0x%02x, X=0x%02x, Y=0x%02x, S=0x%02x, opcode=0x%02x, mnemonic=%s, operand: 0x%04x",
 		c.PC, c.A, c.X, c.Y, c.S, opcode, instruction.mnemonic, operand)
 	instruction.execute(instruction.mode, operand)
 	return instruction.cycles

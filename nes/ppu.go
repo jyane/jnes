@@ -133,11 +133,11 @@ func (p *PPU) Reset() {
 	p.scanline = 241
 }
 
-func (p *PPU) CheckNMI() bool {
-	if p.nmiOutput && p.nmiOccurred {
-		return true
+func (p *PPU) Frame() (bool, *image.RGBA) {
+	if p.cycle == 257 && p.scanline == 239 {
+		return true, p.background
 	} else {
-		return false
+		return false, nil
 	}
 }
 
@@ -370,7 +370,7 @@ func (p *PPU) renderPixel() {
 // Reference:
 //   https://www.nesdev.org/wiki/PPU_rendering
 //   https://www.nesdev.org/wiki/File:Ntsc_timing.png
-func (p *PPU) Do() (bool, *image.RGBA) {
+func (p *PPU) Do() bool {
 	if p.showBackgroundFlag {
 		if 1 <= p.cycle && p.cycle <= 256 && p.scanline <= 239 {
 			p.renderPixel()
@@ -432,10 +432,9 @@ func (p *PPU) Do() (bool, *image.RGBA) {
 			p.scanline = 0
 		}
 	}
-	// immediately returns the image once PPU prepared a frame.
-	if p.cycle == 257 && p.scanline == 239 {
-		return true, p.background
+	if p.nmiOutput && p.nmiOccurred {
+		return true
 	} else {
-		return false, nil
+		return false
 	}
 }
