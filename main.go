@@ -56,6 +56,9 @@ func main() {
 	if err != nil {
 		glog.Fatalln("Failed to read: " + *path)
 	}
-	console := nes.NewConsole(buf, *debug)
+	console, err := nes.NewConsole(buf, *debug)
+	if err != nil {
+		glog.Fatalln("Failed to initiate NES: ", err)
+	}
 	ui.Start(console, *width, *height)
 }

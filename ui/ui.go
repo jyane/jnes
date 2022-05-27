@@ -11,6 +11,7 @@ import (
 )
 
 func mainLoop(window *glfw.Window, console nes.Console, program uint32) {
+	// TODO(jyane): Currently this syncs within a second, this is probably too fast to render 60 frames.
 	for range time.Tick(1 * time.Second) {
 		currentCycles := 0
 		for currentCycles < nes.CPUFrequency {

@@ -4,7 +4,6 @@ import (
 	"bufio"
 	"fmt"
 	"image"
-	"log"
 	"os"
 	"regexp"
 	"strconv"
@@ -19,57 +18,62 @@ type Console interface {
 }
 
 type NesConsole struct {
-	CPU          *CPU
-	PPU          *PPU
-	Controller   *Controller
+	cpu          *CPU
+	ppu          *PPU
+	controller   *Controller
 	lastFrame    uint64
 	currentFrame uint64
 	buffer       *image.RGBA
 }
 
-func NewConsole(buf []byte, debug bool) Console {
+// NewConsole creates a console. If debug is true, this creates a debug console.
+func NewConsole(buf []byte, debug bool) (Console, error) {
 	cartridge, err := NewCartridge(buf)
 	if err != nil {
-		log.Fatalln(err)
+		return nil, err
 	}
 	controller := NewController()
 	ppuBus := NewPPUBus(NewRAM(), cartridge)
 	ppu := NewPPU(ppuBus)
 	cpuBus := NewCPUBus(NewRAM(), ppu, cartridge, controller)
-	cpu := NewCPU(cpuBus)
+	cpu, err := NewCPU(cpuBus)
+	if err != nil {
+		return nil, err
+	}
+	console := &NesConsole{cpu: cpu, ppu: ppu, controller: controller}
 	if debug {
-		return &DebugConsole{CPU: cpu, PPU: ppu, Controller: controller}
+		return &DebugConsole{NesConsole: console}, nil
 	} else {
-		return &NesConsole{CPU: cpu, PPU: ppu, Controller: controller}
+		return console, nil
 	}
 }
 
 func (c *NesConsole) Reset() error {
 	c.currentFrame = 0
 	c.lastFrame = 0
-	if err := c.CPU.Reset(); err != nil {
+	if err := c.cpu.reset(); err != nil {
 		return err
 	}
-	c.PPU.Reset()
+	c.ppu.Reset()
 	return nil
 }
 
 // Step executes a CPU step and returns how many cycles are consumed.
 func (c *NesConsole) Step() (int, error) {
-	cycles, err := c.CPU.Do()
+	cycles, err := c.cpu.Do()
 	if err != nil {
 		return cycles, err
 	}
 	// PPU's clock is exactly 3x faster than CPU's
 	for i := 0; i < cycles*3; i++ {
-		nmi, err := c.PPU.Do()
+		nmi, err := c.ppu.Do()
 		if err != nil {
 			return cycles, err
 		}
 		if nmi {
-			c.CPU.nmiTriggered = true
+			c.cpu.nmiTriggered = true
 		}
-		ok, f := c.PPU.Frame()
+		ok, f := c.ppu.Frame()
 		if ok {
 			c.currentFrame++
 			c.buffer = f
@@ -89,25 +93,23 @@ func (c *NesConsole) Frame() (*image.RGBA, bool) {
 }
 
 func (c *NesConsole) SetButtons(buttons [8]bool) {
-	c.Controller.Set(buttons)
+	c.controller.Set(buttons)
 }
 
-// DebugConsole is for debug.
-// s:
-//   execute step(s).
-// p:
-//   print.
-// br:
-//   set a break point.
-// q:
-//   quit.
-// r:
-//   reset.
-
+// DebugConsole is for debug, you can execute some commands through stdio.
+// commands:
+//   s:
+//     execute step(s).
+//   p:
+//     print.
+//   br:
+//     set a break point.
+//   q:
+//     quit.
+//   r:
+//     reset.
 type DebugConsole struct {
-	CPU          *CPU
-	PPU          *PPU
-	Controller   *Controller
+	*NesConsole
 	lastFrame    uint64
 	currentFrame uint64
 	buffer       *image.RGBA
@@ -117,27 +119,27 @@ type DebugConsole struct {
 func (c *DebugConsole) Reset() error {
 	c.lastFrame = 0
 	c.currentFrame = 0
-	if err := c.CPU.Reset(); err != nil {
+	if err := c.cpu.reset(); err != nil {
 		return err
 	}
-	c.PPU.Reset()
+	c.ppu.Reset()
 	return nil
 }
 
 func (c *DebugConsole) step() (int, error) {
-	cycles, err := c.CPU.Do()
+	cycles, err := c.cpu.Do()
 	if err != nil {
 		return cycles, err
 	}
 	for i := 0; i < cycles*3; i++ {
-		nmi, err := c.PPU.Do()
+		nmi, err := c.ppu.Do()
 		if err != nil {
 			return cycles, err
 		}
 		if nmi {
-			c.CPU.nmiTriggered = true
+			c.cpu.nmiTriggered = true
 		}
-		ok, f := c.PPU.Frame()
+		ok, f := c.ppu.Frame()
 		if ok {
 			c.currentFrame++
 			c.buffer = f
@@ -149,11 +151,11 @@ func (c *DebugConsole) step() (int, error) {
 func (c *DebugConsole) basePrint() {
 	fmt.Println("--------------------------------------------------")
 	fmt.Printf("Rendered frame: %d\n", c.currentFrame)
-	fmt.Println("Last exec: " + c.CPU.lastExecution)
+	fmt.Println("Last exec: " + c.cpu.lastExecution)
 	fmt.Printf("CPU: PC=0x%04x, A=0x%02x, X=0x%02x, Y=0x%02x, S=0x%02x\n",
-		c.CPU.PC, c.CPU.A, c.CPU.X, c.CPU.Y, c.CPU.S)
+		c.cpu.pc, c.cpu.a, c.cpu.x, c.cpu.y, c.cpu.s)
 	fmt.Printf("PPU: cycle=%d, scanline=%d, p.v=0x%04x\n",
-		c.PPU.cycle, c.PPU.scanline, c.PPU.v)
+		c.ppu.cycle, c.ppu.scanline, c.ppu.v)
 }
 
 func (c *DebugConsole) printCommand(args []string) {
@@ -162,24 +164,24 @@ func (c *DebugConsole) printCommand(args []string) {
 	} else {
 		switch args[1] {
 		case "c", "cpu":
-			fmt.Printf("%+v\n", *c.CPU)
+			fmt.Printf("%+v\n", *c.cpu)
 		case "p", "ppu":
-			fmt.Printf("%+v\n", *c.PPU)
+			fmt.Printf("%+v\n", *c.ppu)
 		case "ca", "cartridge":
-			fmt.Printf("%+v\n", *c.CPU.bus.cartridge)
+			fmt.Printf("%+v\n", *c.cpu.bus.cartridge)
 		case "ct", "controller":
-			fmt.Printf("%+v\n", *c.Controller)
+			fmt.Printf("%+v\n", *c.controller)
 		case "wr", "wram":
-			fmt.Printf("%+v\n", *c.CPU.bus.wram)
+			fmt.Printf("%+v\n", *c.cpu.bus.wram)
 		case "vr", "vram":
-			fmt.Printf("%+v\n", *c.PPU.bus.vram)
+			fmt.Printf("%+v\n", *c.ppu.bus.vram)
 		}
 	}
 }
 
 func (c *DebugConsole) checkBreak() bool {
 	for i := 0; i < len(c.breakpoints); i++ {
-		if c.breakpoints[i] == c.CPU.PC {
+		if c.breakpoints[i] == c.cpu.pc {
 			fmt.Printf("Break at: 0x%04x\n", c.breakpoints[i])
 			return true
 		}
@@ -287,17 +289,4 @@ func (c *DebugConsole) Step() (int, error) {
 	}
 	// step command was not executed.
 	return 0, nil
-}
-
-func (c *DebugConsole) Frame() (*image.RGBA, bool) {
-	if c.lastFrame < c.currentFrame {
-		c.lastFrame = c.currentFrame
-		return c.buffer, true
-	} else {
-		return c.buffer, false
-	}
-}
-
-func (c *DebugConsole) SetButtons(buttons [8]bool) {
-	c.Controller.Set(buttons)
 }
