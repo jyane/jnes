@@ -45,7 +45,7 @@ func (b *CPUBus) readPPURegister(address uint16) (byte, error) {
 	case 0x2007:
 		return b.ppu.readPPUDATA()
 	default:
-    return 0, fmt.Errorf("PPU register $%04x is not readable", address)
+		return 0, fmt.Errorf("PPU register $%04x is not readable", address)
 	}
 }
 
