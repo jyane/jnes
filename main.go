@@ -60,5 +60,8 @@ func main() {
 	if err != nil {
 		glog.Fatalln("Failed to initiate Console: ", err)
 	}
+  if err := console.Reset(); err != nil {
+    glog.Fatalln("Failed to reset the console.")
+  }
 	ui.Start(console, *width, *height)
 }

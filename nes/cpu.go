@@ -365,7 +365,7 @@ func (c *CPU) createInstructions() []instruction {
 }
 
 // NewCPU creates a new NES CPU.
-func NewCPU(bus *CPUBus) (*CPU, error) {
+func NewCPU(bus *CPUBus) *CPU {
 	c := &CPU{
 		p: &status{
 			b: true,
@@ -374,10 +374,7 @@ func NewCPU(bus *CPUBus) (*CPU, error) {
 		bus: bus,
 	}
 	c.instructions = c.createInstructions()
-	if err := c.Reset(); err != nil {
-		return nil, err
-	}
-	return c, nil
+	return c
 }
 
 // Reset does Reset.

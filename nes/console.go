@@ -36,7 +36,7 @@ func NewConsole(buf []byte, debug bool) (Console, error) {
 	ppuBus := NewPPUBus(NewRAM(), cartridge)
 	ppu := NewPPU(ppuBus)
 	cpuBus := NewCPUBus(NewRAM(), ppu, cartridge, controller)
-	cpu, err := NewCPU(cpuBus)
+	cpu := NewCPU(cpuBus)
 	if err != nil {
 		return nil, err
 	}

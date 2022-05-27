@@ -14,6 +14,7 @@ func TestHelloWorld(t *testing.T) {
 	defer f.Close()
 	b, _ := ioutil.ReadAll(f)
 	console, _ := nes.NewConsole(b, false /* debug */)
+  console.Reset()
 	for {
 		console.Step()
 		got, ok := console.Frame()
