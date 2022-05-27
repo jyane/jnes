@@ -58,7 +58,7 @@ func main() {
 	}
 	console, err := nes.NewConsole(buf, *debug)
 	if err != nil {
-		glog.Fatalln("Failed to initiate NES: ", err)
+		glog.Fatalln("Failed to initiate Console: ", err)
 	}
 	ui.Start(console, *width, *height)
 }

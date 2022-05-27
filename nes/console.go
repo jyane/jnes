@@ -60,13 +60,13 @@ func (c *NesConsole) Reset() error {
 
 // Step executes a CPU step and returns how many cycles are consumed.
 func (c *NesConsole) Step() (int, error) {
-	cycles, err := c.cpu.Do()
+	cycles, err := c.cpu.Step()
 	if err != nil {
 		return cycles, err
 	}
 	// PPU's clock is exactly 3x faster than CPU's
 	for i := 0; i < cycles*3; i++ {
-		nmi, err := c.ppu.Do()
+		nmi, err := c.ppu.Step()
 		if err != nil {
 			return cycles, err
 		}
@@ -127,12 +127,12 @@ func (c *DebugConsole) Reset() error {
 }
 
 func (c *DebugConsole) step() (int, error) {
-	cycles, err := c.cpu.Do()
+	cycles, err := c.cpu.Step()
 	if err != nil {
 		return cycles, err
 	}
 	for i := 0; i < cycles*3; i++ {
-		nmi, err := c.ppu.Do()
+		nmi, err := c.ppu.Step()
 		if err != nil {
 			return cycles, err
 		}
@@ -289,4 +289,17 @@ func (c *DebugConsole) Step() (int, error) {
 	}
 	// step command was not executed.
 	return 0, nil
+}
+
+func (c *DebugConsole) Frame() (*image.RGBA, bool) {
+	if c.lastFrame < c.currentFrame {
+		c.lastFrame = c.currentFrame
+		return c.buffer, true
+	} else {
+		return c.buffer, false
+	}
+}
+
+func (c *DebugConsole) SetButtons(buttons [8]bool) {
+	c.controller.Set(buttons)
 }
