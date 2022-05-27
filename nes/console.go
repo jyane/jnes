@@ -51,7 +51,7 @@ func NewConsole(buf []byte, debug bool) (Console, error) {
 func (c *NesConsole) Reset() error {
 	c.currentFrame = 0
 	c.lastFrame = 0
-	if err := c.cpu.reset(); err != nil {
+	if err := c.cpu.Reset(); err != nil {
 		return err
 	}
 	c.ppu.Reset()
@@ -119,7 +119,7 @@ type DebugConsole struct {
 func (c *DebugConsole) Reset() error {
 	c.lastFrame = 0
 	c.currentFrame = 0
-	if err := c.cpu.reset(); err != nil {
+	if err := c.cpu.Reset(); err != nil {
 		return err
 	}
 	c.ppu.Reset()

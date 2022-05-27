@@ -374,14 +374,14 @@ func NewCPU(bus *CPUBus) (*CPU, error) {
 		bus: bus,
 	}
 	c.instructions = c.createInstructions()
-	if err := c.reset(); err != nil {
+	if err := c.Reset(); err != nil {
 		return nil, err
 	}
 	return c, nil
 }
 
-// reset does reset.
-func (c *CPU) reset() error {
+// Reset does Reset.
+func (c *CPU) Reset() error {
 	data, err := c.bus.read16(0xFFFC)
 	if err != nil {
 		return err
