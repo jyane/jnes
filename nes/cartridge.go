@@ -70,7 +70,7 @@ func NewCartridge(data []byte) (*Cartridge, error) {
 	return c, nil
 }
 
-func (c *Cartridge) getTableMirrorMode() tableMirrorMode {
+func (c *Cartridge) mirrorMode() tableMirrorMode {
 	if c.flags6&1 == 1 {
 		return vertical
 	} else {

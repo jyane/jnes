@@ -16,7 +16,7 @@ func NewPPUBus(vram *RAM, cartridge *Cartridge) *PPUBus {
 var offsets = []uint16{0x0800, 0x0400}
 
 func (b *PPUBus) mirrorAddress(address uint16) uint16 {
-	mode := b.cartridge.getTableMirrorMode()
+	mode := b.cartridge.mirrorMode()
 	if 0x2000 <= address && address <= 0x23FF { // first screen
 		return address - 0x2000
 	} else {

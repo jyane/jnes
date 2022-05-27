@@ -396,11 +396,11 @@ func (p *PPU) renderPixel() {
 	p.background.SetRGBA(x, y, *p.getColor(x, y, lv+hv))
 }
 
-// Do emulates a cycle of PPU and each cycles renders a pixel for NTSC.
+// Step emulates a cycle of PPU and each cycles renders a pixel for NTSC.
 // Reference:
 //   https://www.nesdev.org/wiki/PPU_rendering
 //   https://www.nesdev.org/wiki/File:Ntsc_timing.png
-func (p *PPU) Do() (bool, error) {
+func (p *PPU) Step() (bool, error) {
 	if p.showBackgroundFlag {
 		if 1 <= p.cycle && p.cycle <= 256 && p.scanline <= 239 {
 			p.renderPixel()
