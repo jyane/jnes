@@ -122,7 +122,6 @@ func NewPPU(bus *PPUBus) *PPU {
 		bus:        bus,
 		background: image.NewRGBA(image.Rect(0, 0, width, height)),
 	}
-	p.Reset()
 	return p
 }
 

@@ -36,10 +36,7 @@ func NewConsole(buf []byte, debug bool) (Console, error) {
 	ppuBus := NewPPUBus(NewRAM(), cartridge)
 	ppu := NewPPU(ppuBus)
 	cpuBus := NewCPUBus(NewRAM(), ppu, cartridge, controller)
-	cpu, err := NewCPU(cpuBus)
-	if err != nil {
-		return nil, err
-	}
+	cpu := NewCPU(cpuBus)
 	console := &NesConsole{cpu: cpu, ppu: ppu, controller: controller}
 	if debug {
 		return &DebugConsole{NesConsole: console}, nil

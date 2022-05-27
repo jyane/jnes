@@ -45,7 +45,7 @@ func (b *CPUBus) readPPURegister(address uint16) (byte, error) {
 	case 0x2007:
 		return b.ppu.readPPUDATA()
 	default:
-		return 0, fmt.Errorf("Unknown CPU bus read: 0x%04x", address)
+		return 0, fmt.Errorf("PPU register $%04x is not readable", address)
 	}
 }
 
@@ -68,7 +68,8 @@ func (b *CPUBus) read(address uint16) (byte, error) {
 	case address < 0x4020:
 		return 0, fmt.Errorf("Reading unused bus address: 0x%04x\n", address)
 	case 0x8000 <= address:
-		return b.cartridge.prgROM[address-0x8000], nil
+		mod := uint16(len(b.cartridge.prgROM))
+		return b.cartridge.prgROM[(address-0x8000)%mod], nil
 	default:
 		return 0, fmt.Errorf("Unknown CPU bus read: 0x%04x", address)
 	}
