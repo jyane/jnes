@@ -10,7 +10,7 @@ import (
 )
 
 func TestHelloWorld(t *testing.T) {
-	f, _ := os.Open("sample1.nes")
+	f, _ := os.Open("testdata/sample1.nes")
 	defer f.Close()
 	b, _ := ioutil.ReadAll(f)
 	console, _ := nes.NewConsole(b, false /* debug */)
@@ -19,7 +19,7 @@ func TestHelloWorld(t *testing.T) {
 		console.Step()
 		got, ok := console.Frame()
 		if ok {
-			r, _ := os.Open("helloworld.png")
+			r, _ := os.Open("testdata/helloworld.png")
 			defer r.Close()
 			want, _ := png.Decode(r)
 			for y := 0; y < got.Rect.Max.Y; y++ {
