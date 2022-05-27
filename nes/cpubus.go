@@ -69,6 +69,21 @@ func (b *CPUBus) read(address uint16) (byte, error) {
 	return 0, nil
 }
 
+//  read16Wrap returns 16 bytes with a CPU bug.
+func (b *CPUBus) read16Wrap(address uint16) (uint16, error) {
+	a1 := address
+	a2 := (address & 0xFF00) | ((address + 1) & 0xFF)
+	l, err := b.read(a1)
+	if err != nil {
+		return 0, err
+	}
+	h, err := b.read(a2)
+	if err != nil {
+		return 0, err
+	}
+	return uint16(h)<<8 | uint16(l), nil
+}
+
 // read16 reads 2 bytes.
 func (b *CPUBus) read16(address uint16) (uint16, error) {
 	l, err := b.read(address)

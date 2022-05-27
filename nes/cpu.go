@@ -729,7 +729,7 @@ func (c *CPU) inc(mode addressingMode, operand uint16) error {
 	if err != nil {
 		return err
 	}
-	x--
+	x++
 	if err := c.write(operand, x); err != nil {
 		return err
 	}
@@ -988,7 +988,7 @@ func (c *CPU) sbc(mode addressingMode, operand uint16) error {
 		carry = 1
 	}
 	res := x - y - (1 - carry)
-	if res < 0 {
+	if 0 <= res {
 		c.P.C = true
 		c.A = 0
 	} else {
@@ -1059,8 +1059,8 @@ func (c *CPU) tax(mode addressingMode, operand uint16) error {
 // TAY - Transfer A to Y.
 func (c *CPU) tay(mode addressingMode, operand uint16) error {
 	c.Y = c.A
-	c.setN(c.A)
-	c.setZ(c.A)
+	c.setN(c.Y)
+	c.setZ(c.Y)
 	return nil
 }
 
@@ -1075,24 +1075,22 @@ func (c *CPU) tsx(mode addressingMode, operand uint16) error {
 // TXA - Transfer X to A.
 func (c *CPU) txa(mode addressingMode, operand uint16) error {
 	c.A = c.X
-	c.setN(c.X)
-	c.setZ(c.X)
+	c.setN(c.A)
+	c.setZ(c.A)
 	return nil
 }
 
 // TXS - Transfer X to S.
 func (c *CPU) txs(mode addressingMode, operand uint16) error {
 	c.S = c.X
-	c.setN(c.X)
-	c.setZ(c.X)
 	return nil
 }
 
 // TYA - Transfer Y to A.
 func (c *CPU) tya(mode addressingMode, operand uint16) error {
 	c.A = c.Y
-	c.setN(c.Y)
-	c.setZ(c.Y)
+	c.setN(c.A)
+	c.setZ(c.A)
 	return nil
 }
 
@@ -1195,27 +1193,35 @@ func (c *CPU) Do() (int, error) {
 		}
 		operand = data + uint16(c.Y)
 	case indirect:
-		a, err := c.bus.read16(c.PC + 1)
+		p, err := c.bus.read16(c.PC + 1)
 		if err != nil {
 			return 0, err
 		}
-		data, err := c.bus.read16(a)
+		data, err := c.bus.read16Wrap(p)
 		if err != nil {
 			return 0, err
 		}
 		operand = data
 	case indirectX:
-		data, err := c.bus.read16(c.PC + 1)
+		p, err := c.bus.read(c.PC + 1)
 		if err != nil {
 			return 0, err
 		}
-		operand = uint16(data) + uint16(c.X)
+		data, err := c.bus.read16Wrap(uint16(p) + uint16(c.X))
+		if err != nil {
+			return 0, err
+		}
+		operand = data
 	case indirectY:
-		data, err := c.bus.read16(c.PC + 1)
+		p, err := c.bus.read(c.PC + 1)
 		if err != nil {
 			return 0, err
 		}
-		operand = uint16(data) + uint16(c.Y)
+		data, err := c.bus.read16Wrap(uint16(p))
+		if err != nil {
+			return 0, err
+		}
+		operand = data + uint16(c.Y)
 	}
 	c.PC += instruction.size
 	// Save debug string.

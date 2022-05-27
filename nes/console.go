@@ -94,9 +94,11 @@ func (c *NesConsole) SetButtons(buttons [8]bool) {
 
 // DebugConsole is for debug.
 // s:
-//   executes step(s).
+//   execute step(s).
 // p:
 //   print.
+// br:
+//   set a break point.
 // q:
 //   quit.
 // r:
@@ -109,6 +111,7 @@ type DebugConsole struct {
 	lastFrame    uint64
 	currentFrame uint64
 	buffer       *image.RGBA
+	breakpoints  []uint16
 }
 
 func (c *DebugConsole) Reset() error {
@@ -174,6 +177,16 @@ func (c *DebugConsole) printCommand(args []string) {
 	}
 }
 
+func (c *DebugConsole) checkBreak() bool {
+	for i := 0; i < len(c.breakpoints); i++ {
+		if c.breakpoints[i] == c.CPU.PC {
+			fmt.Printf("Break at: 0x%04x\n", c.breakpoints[i])
+			return true
+		}
+	}
+	return false
+}
+
 func (c *DebugConsole) stepCommand(args []string) (int, error) {
 	if len(args) < 2 {
 		return c.step()
@@ -189,11 +202,14 @@ func (c *DebugConsole) stepCommand(args []string) (int, error) {
 				// This will be 60 * num frames execution.
 				steps := CPUFrequency * num
 				for cycles < steps {
-					c, err := c.step()
+					v, err := c.step()
 					if err != nil {
 						return cycles, err
 					}
-					cycles += c
+					cycles += v
+					if c.checkBreak() {
+						return cycles, nil
+					}
 				}
 			case 'd':
 				// debug -> steps with debug messages.
@@ -204,6 +220,9 @@ func (c *DebugConsole) stepCommand(args []string) (int, error) {
 						return cycles, err
 					}
 					cycles += v
+					if c.checkBreak() {
+						return cycles, nil
+					}
 				}
 			default: // no unit -> step
 				for i := 0; i < num; i++ {
@@ -212,6 +231,9 @@ func (c *DebugConsole) stepCommand(args []string) (int, error) {
 						return cycles, err
 					}
 					cycles += v
+					if c.checkBreak() {
+						return cycles, nil
+					}
 				}
 			}
 			return cycles, nil
@@ -220,18 +242,24 @@ func (c *DebugConsole) stepCommand(args []string) (int, error) {
 	return 0, nil
 }
 
+func (c *DebugConsole) breakPointCommand(args []string) error {
+	var i int
+	fmt.Sscanf(args[1], "0x%x\n", &i)
+	c.breakpoints = append(c.breakpoints, uint16(i))
+	return nil
+}
+
 func (c *DebugConsole) quitCommand() {
 	fmt.Println("Quitting.")
 	os.Exit(0)
 }
 
 func (c *DebugConsole) Step() (int, error) {
-	fmt.Printf("Debugger mode, 'q' to quit -----------------------------------------------\n>> ")
+	fmt.Printf("Debugger mode, 'q' to quit \n>> ")
 	in := bufio.NewReader(os.Stdin)
 	line, err := in.ReadString('\n')
 	if err != nil {
-		fmt.Println("Failed to read debug msg.")
-		os.Exit(1)
+		return 0, err
 	}
 	args := strings.Split(strings.TrimSuffix(line, "\n"), " ")
 	command := args[0]
@@ -246,12 +274,16 @@ func (c *DebugConsole) Step() (int, error) {
 		}
 		fmt.Printf("Executed %d CPU cycles, %d PPU cycles.\n", cycles, 3*cycles)
 		return cycles, nil
+	case "br", "breakpoint":
+		if err := c.breakPointCommand(args); err != nil {
+			return 0, err
+		}
 	case "r", "reset":
 		c.Reset()
 	case "q", "quit":
 		c.quitCommand()
 	default:
-		fmt.Printf("Unkonwn command %s\n", line)
+		return 0, fmt.Errorf("Unkonwn command %s", line)
 	}
 	// step command was not executed.
 	return 0, nil
