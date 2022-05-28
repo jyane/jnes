@@ -385,7 +385,7 @@ func NewCPU(bus *CPUBus) *CPU {
 func (c *CPU) Reset() error {
 	data, err := c.bus.read16(0xFFFC)
 	if err != nil {
-		return err
+		return fmt.Errorf("Failed to reset CPU: %w", err)
 	}
 	c.pc = data
 	c.s = 0xFD
@@ -822,6 +822,9 @@ func (c *CPU) lsr(mode addressingMode, operand uint16) error {
 
 // NOP - No Operation.
 func (c *CPU) nop(mode addressingMode, operand uint16) error {
+	if mode != implied {
+		glog.Infof("Unofficial opcode execution: NOP(not $EA), operand: 0x%04x\n", operand)
+	}
 	// noop
 	return nil
 }
@@ -1219,7 +1222,7 @@ func (c *CPU) Step() (int, error) {
 	c.lastExecution = fmt.Sprintf("PC=0x%04x, A=0x%02x, X=0x%02x, Y=0x%02x, S=0x%02x, opcode=0x%02x, mnemonic=%s, operand: 0x%04x",
 		c.pc, c.a, c.x, c.y, c.s, opcode, mnemonic, operand)
 	if err := instruction.execute(instruction.mode, operand); err != nil {
-		return 0, err
+		return 0, fmt.Errorf("Failed to execute an instruction(%s): %w", c.lastExecution, err)
 	}
 	return instruction.cycles, nil
 }
@@ -1261,7 +1264,7 @@ func (c *CPU) dcp(mode addressingMode, operand uint16) error {
 
 // ISC - ?
 func (c *CPU) isc(mode addressingMode, operand uint16) error {
-	glog.Infof("Unofficial opcode execution: ISB, operand: 0x%04x\n", operand)
+	glog.Infof("Unofficial opcode execution: ISC, operand: 0x%04x\n", operand)
 	c.inc(mode, operand)
 	c.sbc(mode, operand)
 	return nil

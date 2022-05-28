@@ -304,7 +304,7 @@ func (p *PPU) getColor(x, y int, v byte) *color.RGBA {
 	return &c
 }
 
-// Please see https://www.nesdev.org/wiki/PPU_scrolling
+// incrementCoarseX increments X, calc from https://www.nesdev.org/wiki/PPU_scrolling
 func (p *PPU) incrementCoarseX() {
 	if p.v&0x001F == 31 {
 		p.v &= 0xFFE0
@@ -314,7 +314,7 @@ func (p *PPU) incrementCoarseX() {
 	}
 }
 
-// Please see https://www.nesdev.org/wiki/PPU_scrolling
+// copyX copies X, calc from: https://www.nesdev.org/wiki/PPU_scrolling
 func (p *PPU) copyX() {
 	// v: .... .A.. ...B CDEF <- t: .... .A.. ...BCDEF
 	p.v = (p.v & 0xFBE0) | (p.t & 0x041F)
@@ -325,7 +325,7 @@ func (p *PPU) copyY() {
 	p.v = (p.v & 0x841F) | (p.t & 0x7BE0)
 }
 
-// Please see https://www.nesdev.org/wiki/PPU_scrolling#Wrapping_around
+// incrementY increments Y, calc from https://www.nesdev.org/wiki/PPU_scrolling#Wrapping_around
 func (p *PPU) incrementY() {
 	if (p.v & 0x7000) != 0x7000 {
 		p.v += 0x1000
