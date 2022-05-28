@@ -37,7 +37,8 @@ func (b *CPUBus) writeOAMDMA(data [256]byte) {
 }
 
 func (b *CPUBus) readPPURegister(address uint16) (byte, error) {
-	switch address {
+	addr := 0x2000 | address%8
+	switch addr {
 	case 0x2002:
 		return b.ppu.readPPUSTATUS(), nil
 	case 0x2004:
@@ -45,7 +46,7 @@ func (b *CPUBus) readPPURegister(address uint16) (byte, error) {
 	case 0x2007:
 		return b.ppu.readPPUDATA()
 	default:
-		return 0, fmt.Errorf("PPU register $%04x is not readable", address)
+		return 0, fmt.Errorf("PPU register $%04x (0x%04x) is not readable.", address, addr)
 	}
 }
 
@@ -55,7 +56,7 @@ func (b *CPUBus) read(address uint16) (byte, error) {
 	case address < 0x2000:
 		return b.wram.read(address % 0x0800), nil
 	case address < 0x4000:
-		data, err := b.readPPURegister(0x2000 | address%8)
+		data, err := b.readPPURegister(address)
 		if err != nil {
 			return 0, err
 		}
@@ -67,15 +68,14 @@ func (b *CPUBus) read(address uint16) (byte, error) {
 		return 0, nil
 	case address < 0x4020:
 		return 0, fmt.Errorf("Reading unused bus address: 0x%04x\n", address)
-	case 0x8000 <= address:
-		mod := uint16(len(b.cartridge.prgROM))
-		return b.cartridge.prgROM[(address-0x8000)%mod], nil
+	case 0x4020 <= address:
+		return b.cartridge.readFromCPU(address)
 	default:
 		return 0, fmt.Errorf("Unknown CPU bus read: 0x%04x", address)
 	}
 }
 
-//  read16Wrap returns 16 bytes with a CPU bug.
+//  read16Wrap returns 16 bytes with a known CPU bug.
 func (b *CPUBus) read16Wrap(address uint16) (uint16, error) {
 	a1 := address
 	a2 := (address & 0xFF00) | ((address + 1) & 0xFF)
@@ -105,7 +105,8 @@ func (b *CPUBus) read16(address uint16) (uint16, error) {
 
 // writeToPPURegisters writes data to PPU registers.
 func (b *CPUBus) writeToPPURegisters(address uint16, data byte) error {
-	switch address {
+	addr := 0x2000 | address%8
+	switch addr {
 	case 0x2000:
 		b.ppu.writePPUCTRL(data)
 	case 0x2001:
@@ -119,22 +120,22 @@ func (b *CPUBus) writeToPPURegisters(address uint16, data byte) error {
 	case 0x2006:
 		b.ppu.writePPUADDR(data)
 	case 0x2007:
-		if err := b.ppu.writePPUDATA(data); err != nil {
-			return err
-		}
+		return b.ppu.writePPUDATA(data)
 	default:
-		return fmt.Errorf("Unkonwn PPU register write: address=0x%04x, data=0x%02x", address, data)
+		return fmt.Errorf("PPU register $%04x (0x%04x) is not writable.", address, addr)
 	}
 	return nil
 }
 
 // write writes a byte.
+// This is supposed to be called from CPU write. Direct calling this function is not allowed,
+// because writing data to oamdma is not implemented here (implemented on CPU-side).
 func (b *CPUBus) write(address uint16, data byte) error {
 	switch {
 	case address < 0x2000:
 		b.wram.write(address%0x0800, data)
 	case address < 0x4000:
-		return b.writeToPPURegisters(0x2000|address%8, data)
+		return b.writeToPPURegisters(address, data)
 	case address == 0x4014:
 		// Implemented on CPU
 		return fmt.Errorf("CPU bus write was probably illegally called. (OAMDMA $4014)")
@@ -144,8 +145,8 @@ func (b *CPUBus) write(address uint16, data byte) error {
 		glog.Infof("Unimplemented CPU bus write: address=0x%04x, data=0x%02x\n", address, data)
 	case address < 0x4020:
 		return fmt.Errorf("Writing data to unused bus address: 0x%04x\n", address)
-	case 0x8000 <= address:
-		return fmt.Errorf("Writing data to PrgROM not allowed: address=0x%04x, data=0x%02x", address, data)
+	case 0x4020 <= address:
+		return b.cartridge.writeFromCPU(address, data)
 	default:
 		return fmt.Errorf("Unknown CPU bus write: address=0x%04x, data=0x%02x", address, data)
 	}

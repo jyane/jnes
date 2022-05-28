@@ -1121,7 +1121,7 @@ func (c *CPU) Step() (int, error) {
 	}
 	opcode, err := c.bus.read(c.pc)
 	if err != nil {
-		return 0, err
+		return 0, fmt.Errorf("Failed to fetch opcode(0x%04x): %w", opcode, err)
 	}
 	instruction := c.instructions[opcode]
 	var operand uint16 = 0

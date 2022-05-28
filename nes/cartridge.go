@@ -54,6 +54,20 @@ func readCHRROM(data []byte) []byte {
 	return data[l:r]
 }
 
+func (c *Cartridge) mirror() tableMirrorMode {
+	if c.flags6&1 == 1 {
+		return vertical
+	} else {
+		return horizontal
+	}
+}
+
+func (c *Cartridge) mapper() byte {
+	l := c.flags6 & 0xF0
+	h := c.flags7 & 0xF0
+	return h | (l >> 4)
+}
+
 // NewCartridge creates a cartridge.
 func NewCartridge(data []byte) (*Cartridge, error) {
 	c := &Cartridge{}
@@ -67,13 +81,38 @@ func NewCartridge(data []byte) (*Cartridge, error) {
 	c.flags8 = data[8]
 	c.flags9 = data[9]
 	c.flags10 = data[10]
+	// TODO(jyane): Implement mappers, currently this cartridge only supports mapper0.
+	if c.mapper() != 0 {
+		return nil, fmt.Errorf("Mapper%d is not implemented.", c.mapper())
+	}
 	return c, nil
 }
 
-func (c *Cartridge) mirrorMode() tableMirrorMode {
-	if c.flags6&1 == 1 {
-		return vertical
-	} else {
-		return horizontal
+// Mapper0: https://www.nesdev.org/wiki/NROM
+
+// currently only supports mapper0.
+func (c *Cartridge) readFromCPU(address uint16) (byte, error) {
+	if 0x8000 <= address {
+		// CPU $C000-$FFFF: Last 16 KB of ROM (NROM-256) or mirror of $8000-$BFFF (NROM-128).
+		mod := uint16(len(c.prgROM))
+		return c.prgROM[(address-0x8000)%mod], nil
 	}
+	// CPU $6000-$7FFF: Family Basic only: PRG RAM, mirrored as necessary to fill entire 8 KiB window, write protectable with an external switch
+	return 0, fmt.Errorf("Reading PRGRAM not implemented. address: 0x%04x", address)
+}
+
+func (c *Cartridge) writeFromCPU(address uint16, data byte) error {
+	if 0x8000 <= address {
+		return fmt.Errorf("Writing data to PrgROM not allowed: address=0x%04x, data=0x%02x", address, data)
+	}
+	// CPU $6000-$7FFF: Family Basic only: PRG RAM, mirrored as necessary to fill entire 8 KiB window, write protectable with an external switch
+	return fmt.Errorf("Writing data to PRGRAM not implemented. address: 0x%04x, data: 0x%02x", address, data)
+}
+
+func (c *Cartridge) readFromPPU(address uint16) (byte, error) {
+	return c.chrROM[address], nil
+}
+
+func (c *Cartridge) writeFromPPU(address uint16, data byte) error {
+	return fmt.Errorf("Writing data to pattern tables not allowed, address=0x%04x, data=0x%02x", address, data)
 }

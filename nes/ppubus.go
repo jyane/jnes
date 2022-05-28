@@ -16,7 +16,7 @@ func NewPPUBus(vram *RAM, cartridge *Cartridge) *PPUBus {
 var offsets = []uint16{0x0800, 0x0400}
 
 func (b *PPUBus) mirrorAddress(address uint16) uint16 {
-	mode := b.cartridge.mirrorMode()
+	mode := b.cartridge.mirror()
 	if 0x2000 <= address && address <= 0x23FF { // first screen
 		return address - 0x2000
 	} else {
@@ -40,7 +40,7 @@ func (b *PPUBus) mirrorAddress(address uint16) uint16 {
 func (b *PPUBus) read(address uint16) (byte, error) {
 	switch {
 	case address < 0x2000:
-		return b.cartridge.chrROM[address], nil
+		return b.cartridge.readFromPPU(address)
 	case address < 0x3000:
 		return b.vram.read(b.mirrorAddress(address) % 2048), nil
 	case address < 0x3F00:
@@ -56,7 +56,7 @@ func (b *PPUBus) read(address uint16) (byte, error) {
 func (b *PPUBus) write(address uint16, data byte) error {
 	switch {
 	case address < 0x2000:
-		return fmt.Errorf("Writing data to pattern tables not allowed, address=0x%04x, data=0x%02x", address, data)
+		return b.cartridge.writeFromPPU(address, data)
 	case address < 0x3000:
 		b.vram.write(b.mirrorAddress(address)%2048, data)
 	case address < 0x3F00:
