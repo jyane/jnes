@@ -19,7 +19,7 @@ type addressingMode int
 const (
 	implied addressingMode = iota
 	accumulator
-	immdiate
+	immediate
 	zeropage
 	zeropageX
 	zeropageY
@@ -118,7 +118,7 @@ func (c *CPU) createInstructions() []instruction {
 		{"ASL", zeropage, c.asl, 2, 5},    // 0x06
 		{"SLO", zeropage, c.slo, 2, 5},    // 0x07
 		{"PHP", implied, c.php, 1, 3},     // 0x08
-		{"ORA", immdiate, c.ora, 2, 2},    // 0x09
+		{"ORA", immediate, c.ora, 2, 2},   // 0x09
 		{"ASL", accumulator, c.asl, 1, 2}, // 0x0A
 		{},                                // 0x0B, ANC
 		{"NOP", absolute, c.nop, 3, 4},    // 0x0C
@@ -150,7 +150,7 @@ func (c *CPU) createInstructions() []instruction {
 		{"ROL", zeropage, c.rol, 2, 5},    // 0x26
 		{"RLA", zeropage, c.rla, 2, 5},    // 0x27
 		{"PLP", implied, c.plp, 1, 4},     // 0x28
-		{"AND", immdiate, c.and, 2, 2},    // 0x29
+		{"AND", immediate, c.and, 2, 2},   // 0x29
 		{"ROL", accumulator, c.rol, 1, 2}, // 0x2A
 		{},                                // 0x2B, ANC
 		{"BIT", absolute, c.bit, 3, 4},    // 0x2C
@@ -182,7 +182,7 @@ func (c *CPU) createInstructions() []instruction {
 		{"LSR", zeropage, c.lsr, 2, 5},    // 0x46
 		{"SRE", zeropage, c.sre, 2, 5},    // 0x47
 		{"PHA", implied, c.pha, 1, 3},     // 0x48
-		{"EOR", immdiate, c.eor, 2, 2},    // 0x49
+		{"EOR", immediate, c.eor, 2, 2},   // 0x49
 		{"LSR", accumulator, c.lsr, 1, 2}, // 0x4A
 		{},                                // 0x4B, ALR
 		{"JMP", absolute, c.jmp, 3, 3},    // 0x4C
@@ -214,7 +214,7 @@ func (c *CPU) createInstructions() []instruction {
 		{"ROR", zeropage, c.ror, 2, 5},    // 0x66
 		{"RRA", zeropage, c.rra, 2, 5},    // 0x67
 		{"PLA", implied, c.pla, 1, 4},     // 0x68
-		{"ADC", immdiate, c.adc, 2, 2},    // 0x69
+		{"ADC", immediate, c.adc, 2, 2},   // 0x69
 		{"ROR", accumulator, c.ror, 1, 2}, // 0x6A
 		{},                                // 0x6B, ARR
 		{"JMP", indirect, c.jmp, 3, 5},    // 0x6C
@@ -237,16 +237,16 @@ func (c *CPU) createInstructions() []instruction {
 		{"ADC", absoluteX, c.adc, 3, 4},   // 0x7D
 		{"ROR", absoluteX, c.ror, 3, 7},   // 0x7E
 		{"RRA", absoluteX, c.rra, 3, 7},   // 0x7F
-		{"NOP", immdiate, c.nop, 2, 2},    // 0x80
+		{"NOP", immediate, c.nop, 2, 2},   // 0x80
 		{"STA", indirectX, c.sta, 2, 6},   // 0x81
-		{"NOP", immdiate, c.nop, 2, 2},    // 0x82
+		{"NOP", immediate, c.nop, 2, 2},   // 0x82
 		{"SAX", indirectX, c.sax, 2, 6},   // 0x83
 		{"STY", zeropage, c.sty, 2, 3},    // 0x84
 		{"STA", zeropage, c.sta, 2, 3},    // 0x85
 		{"STX", zeropage, c.stx, 2, 3},    // 0x86
 		{"SAX", zeropage, c.sax, 2, 3},    // 0x87
 		{"DEY", implied, c.dey, 1, 2},     // 0x88
-		{"NOP", immdiate, c.nop, 2, 2},    // 0x89
+		{"NOP", immediate, c.nop, 2, 2},   // 0x89
 		{"TXA", implied, c.txa, 1, 2},     // 0x8A
 		{},                                // 0x8B, XAA
 		{"STY", absolute, c.sty, 3, 4},    // 0x8C
@@ -269,16 +269,16 @@ func (c *CPU) createInstructions() []instruction {
 		{"STA", absoluteX, c.sta, 3, 5},   // 0x9D
 		{},                                // 0x9E, SHX
 		{},                                // 0x9F, AHX
-		{"LDY", immdiate, c.ldy, 2, 2},    // 0xA0
+		{"LDY", immediate, c.ldy, 2, 2},   // 0xA0
 		{"LDA", indirectX, c.lda, 2, 6},   // 0xA1
-		{"LDX", immdiate, c.ldx, 2, 2},    // 0xA2
+		{"LDX", immediate, c.ldx, 2, 2},   // 0xA2
 		{"LAX", indirectX, c.lax, 2, 6},   // 0xA3
 		{"LDY", zeropage, c.ldy, 2, 3},    // 0xA4
 		{"LDA", zeropage, c.lda, 2, 2},    // 0xA5
 		{"LDX", zeropage, c.ldx, 2, 3},    // 0xA6
 		{"LAX", zeropage, c.lax, 2, 3},    // 0xA7
 		{"TAY", implied, c.tay, 1, 2},     // 0xA8
-		{"LDA", immdiate, c.lda, 2, 2},    // 0xA9
+		{"LDA", immediate, c.lda, 2, 2},   // 0xA9
 		{"TAX", implied, c.tax, 1, 2},     // 0xAA
 		{},                                // 0xAB, LAX
 		{"LDY", absolute, c.ldy, 3, 4},    // 0xAC
@@ -301,16 +301,16 @@ func (c *CPU) createInstructions() []instruction {
 		{"LDA", absoluteX, c.lda, 3, 4},   // 0xBD
 		{"LDX", absoluteY, c.ldx, 3, 4},   // 0xBE
 		{"LAX", absoluteY, c.lax, 3, 4},   // 0xBF
-		{"CPY", immdiate, c.cpy, 2, 2},    // 0xC0
+		{"CPY", immediate, c.cpy, 2, 2},   // 0xC0
 		{"CMP", indirectX, c.cmp, 2, 6},   // 0xC1
-		{"NOP", immdiate, c.nop, 2, 2},    // 0xC2
+		{"NOP", immediate, c.nop, 2, 2},   // 0xC2
 		{"DCP", indirectX, c.dcp, 2, 8},   // 0xC3
 		{"CPY", zeropage, c.cpy, 2, 3},    // 0xC4
 		{"CMP", zeropage, c.cmp, 2, 3},    // 0xC5
 		{"DEC", zeropage, c.dec, 2, 5},    // 0xC6
 		{"DCP", zeropage, c.dcp, 2, 5},    // 0xC7
 		{"INY", implied, c.iny, 1, 2},     // 0xC8
-		{"CMP", immdiate, c.cmp, 2, 2},    // 0xC9
+		{"CMP", immediate, c.cmp, 2, 2},   // 0xC9
 		{"DEX", implied, c.dex, 1, 2},     // 0xCA
 		{},                                // 0xCB, AXS
 		{"CPY", absolute, c.cpy, 3, 4},    // 0xCC
@@ -333,18 +333,18 @@ func (c *CPU) createInstructions() []instruction {
 		{"CMP", absoluteX, c.cmp, 3, 4},   // 0xDD
 		{"DEC", absoluteX, c.dec, 3, 7},   // 0xDE
 		{"DCP", absoluteX, c.dcp, 3, 7},   // 0xDF
-		{"CPX", immdiate, c.cpx, 2, 2},    // 0xE0
+		{"CPX", immediate, c.cpx, 2, 2},   // 0xE0
 		{"SBC", indirectX, c.sbc, 2, 6},   // 0xE1
-		{"NOP", immdiate, c.nop, 2, 2},    // 0xE2
+		{"NOP", immediate, c.nop, 2, 2},   // 0xE2
 		{"ISC", indirectX, c.isc, 2, 8},   // 0xE3
 		{"CPX", zeropage, c.cpx, 2, 3},    // 0xE4
 		{"SBC", zeropage, c.sbc, 2, 3},    // 0xE5
 		{"INC", zeropage, c.inc, 2, 5},    // 0xE6
 		{"ISC", zeropage, c.isc, 2, 5},    // 0xE7
 		{"INX", implied, c.inx, 1, 2},     // 0xE8
-		{"SBC", immdiate, c.sbc, 2, 2},    // 0xE9
+		{"SBC", immediate, c.sbc, 2, 2},   // 0xE9
 		{"NOP", implied, c.nop, 1, 2},     // 0xEA
-		{"SBC", immdiate, c.sbc, 2, 2},    // 0xEB
+		{"SBC", immediate, c.sbc, 2, 2},   // 0xEB
 		{"CPX", absolute, c.cpx, 3, 4},    // 0xEC
 		{"SBC", absolute, c.sbc, 3, 4},    // 0xED
 		{"INC", absolute, c.inc, 3, 6},    // 0xEE
@@ -1113,11 +1113,12 @@ func (c *CPU) Step() (int, error) {
 		return 1, nil
 	}
 	// Non-maskable interrupt.
+	didNMI := false
 	if c.nmiTriggered {
 		c.nmi()
 		c.nmiTriggered = false
+		didNMI = true
 		c.lastExecution = fmt.Sprintf("NMI, PC=0x%04x, A=0x%02x, X=0x%02x, Y=0x%02x, S=0x%02x", c.pc, c.a, c.x, c.y, c.s)
-		return 7, nil
 	}
 	opcode, err := c.bus.read(c.pc)
 	if err != nil {
@@ -1130,7 +1131,7 @@ func (c *CPU) Step() (int, error) {
 		operand = 0
 	case accumulator:
 		operand = 0
-	case immdiate:
+	case immediate:
 		operand = c.pc + 1
 	case zeropage:
 		data, err := c.bus.read(c.pc + 1)
@@ -1213,18 +1214,22 @@ func (c *CPU) Step() (int, error) {
 		}
 		operand = data + uint16(c.y)
 	}
-	c.pc += instruction.size
 	mnemonic := c.instructions[opcode].mnemonic
 	if mnemonic == "" {
 		return 0, fmt.Errorf("Tried to execute unimplemented instruction: opcode=0x%02x", opcode)
 	}
 	// Save debug string.
-	c.lastExecution = fmt.Sprintf("PC=0x%04x, A=0x%02x, X=0x%02x, Y=0x%02x, S=0x%02x, opcode=0x%02x, mnemonic=%s, operand: 0x%04x",
-		c.pc, c.a, c.x, c.y, c.s, opcode, mnemonic, operand)
+	c.lastExecution = fmt.Sprintf("PC=0x%04x, A=0x%02x, X=0x%02x, Y=0x%02x, S=0x%02x, P=0x%02x, opcode=0x%02x, mnemonic=%s, operand: 0x%04x",
+		c.pc, c.a, c.x, c.y, c.s, c.p.encode(), opcode, mnemonic, operand)
+	c.pc += instruction.size
 	if err := instruction.execute(instruction.mode, operand); err != nil {
 		return 0, fmt.Errorf("Failed to execute an instruction(%s): %w", c.lastExecution, err)
 	}
-	return instruction.cycles, nil
+	cycles := instruction.cycles
+	if didNMI {
+		cycles += 7
+	}
+	return cycles, nil
 }
 
 // Unofficial opcodes - only a few games depend these opcodes.

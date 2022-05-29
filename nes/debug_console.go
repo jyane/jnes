@@ -78,8 +78,8 @@ func (c *DebugConsole) basePrint() {
 	fmt.Printf("Executed cycles: %d\n", c.cycles)
 	fmt.Printf("Rendered frame: %d\n", c.currentFrame)
 	fmt.Println("Last: " + c.cpu.lastExecution)
-	fmt.Printf("CPU:  PC=0x%04x, A=0x%02x, X=0x%02x, Y=0x%02x, S=0x%02x\n",
-		c.cpu.pc, c.cpu.a, c.cpu.x, c.cpu.y, c.cpu.s)
+	fmt.Printf("CPU:  PC=0x%04x, A=0x%02x, X=0x%02x, Y=0x%02x, S=0x%02x, P=0x%02x\n",
+		c.cpu.pc, c.cpu.a, c.cpu.x, c.cpu.y, c.cpu.s, c.cpu.p.encode())
 	fmt.Printf("PPU: cycle=%d, scanline=%d, p.v=0x%04x\n",
 		c.ppu.cycle, c.ppu.scanline, c.ppu.v)
 }
