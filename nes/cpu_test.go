@@ -10,12 +10,13 @@ import (
 )
 
 var (
-	pcRe = regexp.MustCompile("^[A-Z0-9]{4}")
-	aRe  = regexp.MustCompile("A:([A-Z0-9]*)")
-	xRe  = regexp.MustCompile("X:([A-Z0-9]*)")
-	yRe  = regexp.MustCompile("Y:([A-Z0-9]*)")
-	pRe  = regexp.MustCompile("P:([A-Z0-9]*)")
-	spRe = regexp.MustCompile("SP:([A-Z0-9]*)")
+	pcRe  = regexp.MustCompile("^[A-Z0-9]{4}")
+	aRe   = regexp.MustCompile("A:([A-Z0-9]*)")
+	xRe   = regexp.MustCompile("X:([A-Z0-9]*)")
+	yRe   = regexp.MustCompile("Y:([A-Z0-9]*)")
+	pRe   = regexp.MustCompile("P:([A-Z0-9]*)")
+	spRe  = regexp.MustCompile("SP:([A-Z0-9]*)")
+	cycRe = regexp.MustCompile("CYC:(\\d*)")
 )
 
 func newTestCPU() *CPU {
@@ -35,8 +36,10 @@ func newTestCPU() *CPU {
 }
 
 func TestCPU(t *testing.T) {
+	var wantCycle int
 	var wantPC uint16
 	var wantA, wantX, wantY, wantP, wantSP byte
+	cycles := 7
 	before := "initial state"
 	in, _ := os.Open("../testdata/other/nestest.log")
 	scanner := bufio.NewScanner(in)
@@ -50,6 +53,7 @@ func TestCPU(t *testing.T) {
 		fmt.Sscanf(yRe.FindStringSubmatch(line)[1], "%x", &wantY)
 		fmt.Sscanf(pRe.FindStringSubmatch(line)[1], "%x", &wantP)
 		fmt.Sscanf(spRe.FindStringSubmatch(line)[1], "%x", &wantSP)
+		fmt.Sscanf(cycRe.FindStringSubmatch(line)[1], "%d", &wantCycle)
 		if cpu.pc != wantPC {
 			t.Fatalf("cpu.pc: got=0x%04x, want=0x%04x", cpu.pc, wantPC)
 		}
@@ -70,7 +74,11 @@ func TestCPU(t *testing.T) {
 		if cpu.s != wantSP {
 			t.Fatalf("cpu.sp: got=0x%02x, want=0x%02x", cpu.s, wantSP)
 		}
-		cpu.Step()
+		if cycles != wantCycle {
+			t.Fatalf("cycle: got=%d, want=%d", cycles, wantCycle)
+		}
+		c, _ := cpu.Step()
+		cycles += c
 		before = line
 	}
 }

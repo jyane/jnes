@@ -95,16 +95,20 @@ type CPU struct {
 	lastExecution string  // For debug
 	stall         uint64  // Stall cycles
 	bus           *CPUBus
-	instructions  []instruction
-	nmiTriggered  bool
+	// instructions needs references to CPU itself.
+	instructions []instruction
+	// interrupts
+	nmiTriggered bool
 }
 
+// mnemonic will be empty if it still not implemented.
 type instruction struct {
 	mnemonic string
 	mode     addressingMode
-	execute  func(addressingMode, uint16) error
-	size     uint16
-	cycles   int
+	// execute returns additional cycles if a page crossing happened on branch instructions.
+	execute func(addressingMode, uint16) (int, error)
+	size    uint16
+	cycles  int
 }
 
 func (c *CPU) createInstructions() []instruction {
@@ -124,11 +128,11 @@ func (c *CPU) createInstructions() []instruction {
 		{"NOP", absolute, c.nop, 3, 4},    // 0x0C
 		{"ORA", absolute, c.ora, 3, 4},    // 0x0D
 		{"ASL", absolute, c.asl, 3, 6},    // 0x0E
-		{"SLO", absolute, c.slo, 3, 5},    // 0x0F
+		{"SLO", absolute, c.slo, 3, 6},    // 0x0F
 		{"BPL", relative, c.bpl, 2, 2},    // 0x10
 		{"ORA", indirectY, c.ora, 2, 5},   // 0x11
 		{},                                // 0x12, STP
-		{"SLO", indirectY, c.slo, 2, 8},   // 0x13
+		{"SLO", indirectY, c.slo, 2, 7},   // 0x13
 		{"NOP", zeropageX, c.nop, 2, 4},   // 0x14
 		{"ORA", zeropageX, c.ora, 2, 4},   // 0x15
 		{"ASL", zeropageX, c.asl, 2, 6},   // 0x16
@@ -136,11 +140,11 @@ func (c *CPU) createInstructions() []instruction {
 		{"CLC", implied, c.clc, 1, 2},     // 0x18
 		{"ORA", absoluteY, c.ora, 3, 4},   // 0x19
 		{"NOP", implied, c.nop, 1, 2},     // 0x1A
-		{"SLO", absoluteY, c.slo, 3, 7},   // 0x1B
-		{"NOP", absoluteX, c.nop, 3, 5},   // 0x1C
+		{"SLO", absoluteY, c.slo, 3, 6},   // 0x1B
+		{"NOP", absoluteX, c.nop, 3, 4},   // 0x1C
 		{"ORA", absoluteX, c.ora, 3, 4},   // 0x1D
 		{"ASL", absoluteX, c.asl, 3, 7},   // 0x1E
-		{"SLO", absoluteX, c.slo, 3, 7},   // 0x1F
+		{"SLO", absoluteX, c.slo, 3, 6},   // 0x1F
 		{"JSR", absolute, c.jsr, 3, 6},    // 0x20
 		{"AND", indirectX, c.and, 2, 6},   // 0x21
 		{},                                // 0x22, STP
@@ -160,7 +164,7 @@ func (c *CPU) createInstructions() []instruction {
 		{"BMI", relative, c.bmi, 2, 2},    // 0x30
 		{"AND", indirectY, c.and, 2, 5},   // 0x31
 		{},                                // 0x32, STP
-		{"RLA", indirectY, c.rla, 2, 8},   // 0x33
+		{"RLA", indirectY, c.rla, 2, 7},   // 0x33
 		{"NOP", zeropage, c.nop, 2, 4},    // 0x34
 		{"AND", zeropageX, c.and, 2, 4},   // 0x35
 		{"ROL", zeropageX, c.rol, 2, 6},   // 0x36
@@ -168,11 +172,11 @@ func (c *CPU) createInstructions() []instruction {
 		{"SEC", implied, c.sec, 1, 2},     // 0x38
 		{"AND", absoluteY, c.and, 3, 4},   // 0x39
 		{"NOP", implied, c.nop, 1, 2},     // 0x3A
-		{"RLA", absoluteY, c.rla, 3, 7},   // 0x3B
-		{"NOP", absoluteX, c.nop, 3, 5},   // 0x3C
+		{"RLA", absoluteY, c.rla, 3, 6},   // 0x3B
+		{"NOP", absoluteX, c.nop, 3, 4},   // 0x3C
 		{"AND", absoluteX, c.and, 3, 4},   // 0x3D
 		{"ROL", absoluteX, c.rol, 3, 7},   // 0x3E
-		{"RLA", absoluteX, c.rla, 3, 7},   // 0x3F
+		{"RLA", absoluteX, c.rla, 3, 6},   // 0x3F
 		{"RTI", implied, c.rti, 1, 6},     // 0x40
 		{"EOR", indirectX, c.eor, 2, 6},   // 0x41
 		{},                                // 0x42, STP
@@ -192,7 +196,7 @@ func (c *CPU) createInstructions() []instruction {
 		{"BVC", relative, c.bvc, 2, 2},    // 0x50
 		{"EOR", indirectY, c.eor, 2, 5},   // 0x51
 		{},                                // 0x52, STP
-		{"SRE", indirectY, c.sre, 2, 8},   // 0x53
+		{"SRE", indirectY, c.sre, 2, 7},   // 0x53
 		{"NOP", zeropage, c.nop, 2, 4},    // 0x54
 		{"EOR", zeropageX, c.eor, 2, 4},   // 0x55
 		{"LSR", zeropageX, c.lsr, 2, 6},   // 0x56
@@ -200,11 +204,11 @@ func (c *CPU) createInstructions() []instruction {
 		{"CLI", implied, c.cli, 1, 2},     // 0x58
 		{"EOR", absoluteY, c.eor, 3, 4},   // 0x59
 		{"NOP", implied, c.nop, 1, 2},     // 0x5A
-		{"SRE", absoluteY, c.sre, 3, 7},   // 0x5B
-		{"NOP", absoluteX, c.nop, 3, 5},   // 0x5C
+		{"SRE", absoluteY, c.sre, 3, 6},   // 0x5B
+		{"NOP", absoluteX, c.nop, 3, 4},   // 0x5C
 		{"EOR", absoluteX, c.eor, 3, 4},   // 0x5D
 		{"LSR", absoluteX, c.lsr, 3, 7},   // 0x5E
-		{"SRE", absoluteX, c.sre, 3, 7},   // 0x5F
+		{"SRE", absoluteX, c.sre, 3, 6},   // 0x5F
 		{"RTS", implied, c.rts, 1, 6},     // 0x60
 		{"ADC", indirectX, c.adc, 2, 6},   // 0x61
 		{},                                // 0x62, STP
@@ -224,7 +228,7 @@ func (c *CPU) createInstructions() []instruction {
 		{"BVS", relative, c.bvs, 2, 2},    // 0x70
 		{"ADC", indirectY, c.adc, 2, 5},   // 0x71
 		{},                                // 0x72, STP
-		{"RRA", indirectY, c.rra, 2, 8},   // 0x73
+		{"RRA", indirectY, c.rra, 2, 7},   // 0x73
 		{"NOP", zeropage, c.nop, 2, 4},    // 0x74
 		{"ADC", zeropageX, c.adc, 2, 4},   // 0x75
 		{"ROR", zeropageX, c.ror, 2, 6},   // 0x76
@@ -232,11 +236,11 @@ func (c *CPU) createInstructions() []instruction {
 		{"SEI", implied, c.sei, 1, 2},     // 0x78
 		{"ADC", absoluteY, c.adc, 3, 4},   // 0x79
 		{"NOP", implied, c.nop, 1, 2},     // 0x7A
-		{"RRA", absoluteY, c.rra, 3, 7},   // 0x7B
-		{"NOP", absoluteX, c.nop, 3, 5},   // 0x7C
+		{"RRA", absoluteY, c.rra, 3, 6},   // 0x7B
+		{"NOP", absoluteX, c.nop, 3, 4},   // 0x7C
 		{"ADC", absoluteX, c.adc, 3, 4},   // 0x7D
 		{"ROR", absoluteX, c.ror, 3, 7},   // 0x7E
-		{"RRA", absoluteX, c.rra, 3, 7},   // 0x7F
+		{"RRA", absoluteX, c.rra, 3, 6},   // 0x7F
 		{"NOP", immediate, c.nop, 2, 2},   // 0x80
 		{"STA", indirectX, c.sta, 2, 6},   // 0x81
 		{"NOP", immediate, c.nop, 2, 2},   // 0x82
@@ -274,7 +278,7 @@ func (c *CPU) createInstructions() []instruction {
 		{"LDX", immediate, c.ldx, 2, 2},   // 0xA2
 		{"LAX", indirectX, c.lax, 2, 6},   // 0xA3
 		{"LDY", zeropage, c.ldy, 2, 3},    // 0xA4
-		{"LDA", zeropage, c.lda, 2, 2},    // 0xA5
+		{"LDA", zeropage, c.lda, 2, 3},    // 0xA5
 		{"LDX", zeropage, c.ldx, 2, 3},    // 0xA6
 		{"LAX", zeropage, c.lax, 2, 3},    // 0xA7
 		{"TAY", implied, c.tay, 1, 2},     // 0xA8
@@ -284,11 +288,11 @@ func (c *CPU) createInstructions() []instruction {
 		{"LDY", absolute, c.ldy, 3, 4},    // 0xAC
 		{"LDA", absolute, c.lda, 3, 4},    // 0xAD
 		{"LDX", absolute, c.ldx, 3, 4},    // 0xAE
-		{"LAX", absolute, c.lax, 3, 3},    // 0xAF
+		{"LAX", absolute, c.lax, 3, 4},    // 0xAF
 		{"BCS", relative, c.bcs, 2, 2},    // 0xB0
 		{"LDA", indirectY, c.lda, 2, 5},   // 0xB1
 		{},                                // 0xB2, STP
-		{"LAX", indirectY, c.lax, 2, 6},   // 0xB3
+		{"LAX", indirectY, c.lax, 2, 5},   // 0xB3
 		{"LDY", zeropageX, c.ldy, 2, 4},   // 0xB4
 		{"LDA", zeropageX, c.lda, 2, 4},   // 0xB5
 		{"LDX", zeropageY, c.ldx, 2, 4},   // 0xB6
@@ -320,7 +324,7 @@ func (c *CPU) createInstructions() []instruction {
 		{"BNE", relative, c.bne, 2, 2},    // 0xD0
 		{"CMP", indirectY, c.cmp, 2, 5},   // 0xD1
 		{},                                // 0xD2, STP
-		{"DCP", indirectY, c.dcp, 2, 8},   // 0xD3
+		{"DCP", indirectY, c.dcp, 2, 7},   // 0xD3
 		{"NOP", zeropage, c.nop, 2, 4},    // 0xD4
 		{"CMP", zeropageX, c.cmp, 2, 4},   // 0xD5
 		{"DEC", zeropageX, c.dec, 2, 6},   // 0xD6
@@ -328,11 +332,11 @@ func (c *CPU) createInstructions() []instruction {
 		{"CLD", implied, c.cld, 1, 2},     // 0xD8
 		{"CMP", absoluteY, c.cmp, 3, 4},   // 0xD9
 		{"NOP", implied, c.nop, 1, 2},     // 0xDA
-		{"DCP", absoluteY, c.dcp, 3, 7},   // 0xDB
-		{"NOP", absoluteX, c.nop, 3, 5},   // 0xDC
+		{"DCP", absoluteY, c.dcp, 3, 6},   // 0xDB
+		{"NOP", absoluteX, c.nop, 3, 4},   // 0xDC
 		{"CMP", absoluteX, c.cmp, 3, 4},   // 0xDD
 		{"DEC", absoluteX, c.dec, 3, 7},   // 0xDE
-		{"DCP", absoluteX, c.dcp, 3, 7},   // 0xDF
+		{"DCP", absoluteX, c.dcp, 3, 6},   // 0xDF
 		{"CPX", immediate, c.cpx, 2, 2},   // 0xE0
 		{"SBC", indirectX, c.sbc, 2, 6},   // 0xE1
 		{"NOP", immediate, c.nop, 2, 2},   // 0xE2
@@ -352,7 +356,7 @@ func (c *CPU) createInstructions() []instruction {
 		{"BEQ", relative, c.beq, 2, 2},    // 0xF0
 		{"SBC", indirectY, c.sbc, 2, 5},   // 0xF1
 		{},                                // 0xF2, STP
-		{"ISC", indirectY, c.isc, 2, 8},   // 0xF3
+		{"ISC", indirectY, c.isc, 2, 7},   // 0xF3
 		{"NOP", zeropage, c.nop, 2, 4},    // 0xF4
 		{"SBC", zeropageX, c.sbc, 2, 4},   // 0xF5
 		{"INC", zeropageX, c.inc, 2, 6},   // 0xF6
@@ -361,10 +365,10 @@ func (c *CPU) createInstructions() []instruction {
 		{"SBC", absoluteY, c.sbc, 3, 4},   // 0xF9
 		{"NOP", implied, c.nop, 1, 2},     // 0xFA
 		{"ISC", absoluteY, c.isc, 3, 6},   // 0xFB
-		{"NOP", absoluteX, c.nop, 3, 5},   // 0xFC
+		{"NOP", absoluteX, c.nop, 3, 4},   // 0xFC
 		{"SBC", absoluteX, c.sbc, 3, 4},   // 0xFD
 		{"INC", absoluteX, c.inc, 3, 7},   // 0xFE
-		{"ISC", absoluteX, c.isc, 3, 7},   // 0xFF
+		{"ISC", absoluteX, c.isc, 3, 6},   // 0xFF
 	}
 }
 
@@ -416,6 +420,8 @@ func (c *CPU) write(address uint16, data byte) error {
 	}
 }
 
+// TODO(jyane): implement read to keep symmetry?
+
 // setN sets whether the x is negative or positive.
 func (c *CPU) setN(x byte) {
 	c.p.n = x&0x80 != 0
@@ -443,12 +449,18 @@ func (c *CPU) pop() (byte, error) {
 	return c.bus.read((0x100 | (uint16(c.s) & 0xFF)))
 }
 
+// pageCrossed checks whether a and b is on the same page (0x??00 - 0x??FF).
+func (c *CPU) pageCrossed(a, b uint16) bool {
+	// That means if a and b don't have the same ?? - if the higher 8 bits are the same or not.
+	return a&0xFF00 != b&0xFF00
+}
+
 // ADC - Add with Carry.
-func (c *CPU) adc(mode addressingMode, operand uint16) error {
+func (c *CPU) adc(mode addressingMode, operand uint16) (int, error) {
 	x := uint16(c.a)
 	data, err := c.bus.read(operand)
 	if err != nil {
-		return err
+		return 0, err
 	}
 	y := uint16(data)
 	var carry uint16 = 0
@@ -471,23 +483,23 @@ func (c *CPU) adc(mode addressingMode, operand uint16) error {
 	} else {
 		c.p.v = false
 	}
-	return nil
+	return 0, nil
 }
 
 // AND - And.
-func (c *CPU) and(mode addressingMode, operand uint16) error {
+func (c *CPU) and(mode addressingMode, operand uint16) (int, error) {
 	data, err := c.bus.read(operand)
 	if err != nil {
-		return err
+		return 0, err
 	}
 	c.a = c.a & data
 	c.setN(c.a)
 	c.setZ(c.a)
-	return nil
+	return 0, nil
 }
 
 // ASL - Arithmetic Shift Left.
-func (c *CPU) asl(mode addressingMode, operand uint16) error {
+func (c *CPU) asl(mode addressingMode, operand uint16) (int, error) {
 	if mode == accumulator {
 		c.p.c = (c.a>>7)&1 == 1
 		c.a <<= 1
@@ -496,309 +508,349 @@ func (c *CPU) asl(mode addressingMode, operand uint16) error {
 	} else {
 		x, err := c.bus.read(operand)
 		if err != nil {
-			return err
+			return 0, err
 		}
 		c.p.c = (x>>7)&1 == 1
 		x <<= 1
 		if err := c.write(operand, x); err != nil {
-			return err
+			return 0, err
 		}
 		c.setN(x)
 		c.setZ(x)
 	}
-	return nil
+	return 0, nil
 }
 
 // BCC - Branch on Carry Clear.
-func (c *CPU) bcc(mode addressingMode, operand uint16) error {
+func (c *CPU) bcc(mode addressingMode, operand uint16) (int, error) {
 	if !c.p.c {
+		cycles := 1
 		c.pc = operand
+		if c.pageCrossed(c.pc-1, operand) {
+			cycles++
+		}
+		return cycles, nil
 	}
-	return nil
+	return 0, nil
 }
 
 // BCS - Branch on Carry Set.
-func (c *CPU) bcs(mode addressingMode, operand uint16) error {
+func (c *CPU) bcs(mode addressingMode, operand uint16) (int, error) {
 	if c.p.c {
+		cycles := 1
 		c.pc = operand
+		if c.pageCrossed(c.pc-1, operand) {
+			cycles++
+		}
+		return cycles, nil
 	}
-	return nil
+	return 0, nil
 }
 
 // BEQ - Branch on Equal.
-func (c *CPU) beq(mode addressingMode, operand uint16) error {
+func (c *CPU) beq(mode addressingMode, operand uint16) (int, error) {
 	if c.p.z {
+		cycles := 1
 		c.pc = operand
+		if c.pageCrossed(c.pc-1, operand) {
+			cycles++
+		}
+		return cycles, nil
 	}
-	return nil
+	return 0, nil
 }
 
 // BIT - test BITS.
-func (c *CPU) bit(mode addressingMode, operand uint16) error {
+func (c *CPU) bit(mode addressingMode, operand uint16) (int, error) {
 	x, err := c.bus.read(operand)
 	if err != nil {
-		return err
+		return 0, err
 	}
 	c.setN(x)
 	c.setZ(c.a & x)
 	c.p.v = (x>>6)&1 == 1
-	return nil
+	return 0, nil
 }
 
 // BMI - Branch on Minus.
-func (c *CPU) bmi(mode addressingMode, operand uint16) error {
+func (c *CPU) bmi(mode addressingMode, operand uint16) (int, error) {
 	if c.p.n {
+		cycles := 1
 		c.pc = operand
+		if c.pageCrossed(c.pc-1, operand) {
+			cycles++
+		}
+		return cycles, nil
 	}
-	return nil
+	return 0, nil
 }
 
 // BNE - Branch on Not Equal.
-func (c *CPU) bne(mode addressingMode, operand uint16) error {
+func (c *CPU) bne(mode addressingMode, operand uint16) (int, error) {
 	if !c.p.z {
+		cycles := 1
 		c.pc = operand
+		if c.pageCrossed(c.pc-1, operand) {
+			cycles++
+		}
+		return cycles, nil
 	}
-	return nil
+	return 0, nil
 }
 
 // BPL - Branch on Plus.
-func (c *CPU) bpl(mode addressingMode, operand uint16) error {
+func (c *CPU) bpl(mode addressingMode, operand uint16) (int, error) {
 	if !c.p.n {
+		cycles := 1
 		c.pc = operand
+		if c.pageCrossed(c.pc-1, operand) {
+			cycles++
+		}
+		return cycles, nil
 	}
-	return nil
+	return 0, nil
 }
 
 // BRK - Break Interrupt.
-func (c *CPU) brk(mode addressingMode, operand uint16) error {
+func (c *CPU) brk(mode addressingMode, operand uint16) (int, error) {
 	if err := c.push(byte(c.pc>>8) & 0xFF); err != nil {
-		return err
+		return 0, err
 	}
 	if err := c.push(byte(c.pc & 0xFF)); err != nil {
-		return err
+		return 0, err
 	}
 	if err := c.push(c.p.encode()); err != nil {
-		return err
+		return 0, err
 	}
 	c.p.i = true
 	data, err := c.bus.read16(0xFFFE)
 	if err != nil {
-		return err
+		return 0, err
 	}
 	c.pc = data
-	return nil
+	return 0, nil
 }
 
 // BVC - Branch on Overflow Clear.
-func (c *CPU) bvc(mode addressingMode, operand uint16) error {
+func (c *CPU) bvc(mode addressingMode, operand uint16) (int, error) {
 	if !c.p.v {
+		cycles := 1
 		c.pc = operand
+		if c.pageCrossed(c.pc, operand) {
+			cycles++
+		}
+		return cycles, nil
 	}
-	return nil
+	return 0, nil
 }
 
 // BVS - Branch on Overflow Set.
-func (c *CPU) bvs(mode addressingMode, operand uint16) error {
+func (c *CPU) bvs(mode addressingMode, operand uint16) (int, error) {
 	if c.p.v {
+		cycles := 1
 		c.pc = operand
+		if c.pageCrossed(c.pc-1, operand) {
+			cycles++
+		}
+		return cycles, nil
 	}
-	return nil
+	return 0, nil
 }
 
 // CLC - Clear Carry.
-func (c *CPU) clc(mode addressingMode, operand uint16) error {
+func (c *CPU) clc(mode addressingMode, operand uint16) (int, error) {
 	c.p.c = false
-	return nil
+	return 0, nil
 }
 
 // CLD - Clear Decimal.
-func (c *CPU) cld(mode addressingMode, operand uint16) error {
+func (c *CPU) cld(mode addressingMode, operand uint16) (int, error) {
 	c.p.d = false
-	return nil
+	return 0, nil
 }
 
 // CLI - Clear Interrupt.
-func (c *CPU) cli(mode addressingMode, operand uint16) error {
+func (c *CPU) cli(mode addressingMode, operand uint16) (int, error) {
 	c.p.i = false
-	return nil
+	return 0, nil
 }
 
 // CLV - Clear Overflow.
-func (c *CPU) clv(mode addressingMode, operand uint16) error {
+func (c *CPU) clv(mode addressingMode, operand uint16) (int, error) {
 	c.p.v = false
-	return nil
+	return 0, nil
 }
 
 // CMP - Compare Accumulator.
-func (c *CPU) cmp(mode addressingMode, operand uint16) error {
+func (c *CPU) cmp(mode addressingMode, operand uint16) (int, error) {
 	data, err := c.bus.read(operand)
 	if err != nil {
-		return err
+		return 0, err
 	}
 	x := c.a - data
 	c.p.c = c.a >= data
 	c.setN(x)
 	c.setZ(x)
-	return nil
+	return 0, nil
 }
 
 // CPX - Compare X register.
-func (c *CPU) cpx(mode addressingMode, operand uint16) error {
+func (c *CPU) cpx(mode addressingMode, operand uint16) (int, error) {
 	data, err := c.bus.read(operand)
 	if err != nil {
-		return err
+		return 0, err
 	}
 	x := c.x - data
 	c.p.c = c.x >= data
 	c.setN(x)
 	c.setZ(x)
-	return nil
+	return 0, nil
 }
 
 // CPY - Compare Y register.
-func (c *CPU) cpy(mode addressingMode, operand uint16) error {
+func (c *CPU) cpy(mode addressingMode, operand uint16) (int, error) {
 	data, err := c.bus.read(operand)
 	if err != nil {
-		return err
+		return 0, err
 	}
 	x := c.y - data
 	c.p.c = c.y >= data
 	c.setN(x)
 	c.setZ(x)
-	return nil
+	return 0, nil
 }
 
 // DEC - Decrement Memory.
-func (c *CPU) dec(mode addressingMode, operand uint16) error {
+func (c *CPU) dec(mode addressingMode, operand uint16) (int, error) {
 	data, err := c.bus.read(operand)
 	if err != nil {
-		return err
+		return 0, err
 	}
 	x := data - 1 // this won't go negative.
 	if err := c.write(operand, x); err != nil {
-		return err
+		return 0, err
 	}
 	c.setN(x)
 	c.setZ(x)
-	return nil
+	return 0, nil
 }
 
 // DEX - Decrement X Register.
-func (c *CPU) dex(mode addressingMode, operand uint16) error {
+func (c *CPU) dex(mode addressingMode, operand uint16) (int, error) {
 	c.x--
 	c.setN(c.x)
 	c.setZ(c.x)
-	return nil
+	return 0, nil
 }
 
 // DEY - Decrement Y Register.
-func (c *CPU) dey(mode addressingMode, operand uint16) error {
+func (c *CPU) dey(mode addressingMode, operand uint16) (int, error) {
 	c.y--
 	c.setN(c.y)
 	c.setZ(c.y)
-	return nil
+	return 0, nil
 }
 
 // EOR - Bitwise Exclusive OR.
-func (c *CPU) eor(mode addressingMode, operand uint16) error {
+func (c *CPU) eor(mode addressingMode, operand uint16) (int, error) {
 	data, err := c.bus.read(operand)
 	if err != nil {
-		return err
+		return 0, err
 	}
 	c.a = c.a ^ data
 	c.setN(c.a)
 	c.setZ(c.a)
-	return nil
+	return 0, nil
 }
 
 // INC - Increment Memory.
-func (c *CPU) inc(mode addressingMode, operand uint16) error {
+func (c *CPU) inc(mode addressingMode, operand uint16) (int, error) {
 	x, err := c.bus.read(operand)
 	if err != nil {
-		return err
+		return 0, err
 	}
 	x++
 	if err := c.write(operand, x); err != nil {
-		return err
+		return 0, err
 	}
 	c.setN(x)
 	c.setZ(x)
-	return nil
+	return 0, nil
 }
 
 // INX - Increment X Register.
-func (c *CPU) inx(mode addressingMode, operand uint16) error {
+func (c *CPU) inx(mode addressingMode, operand uint16) (int, error) {
 	c.x++
 	c.setN(c.x)
 	c.setZ(c.x)
-	return nil
+	return 0, nil
 }
 
 // INY - Increment Y Register.
-func (c *CPU) iny(mode addressingMode, operand uint16) error {
+func (c *CPU) iny(mode addressingMode, operand uint16) (int, error) {
 	c.y++
 	c.setN(c.y)
 	c.setZ(c.y)
-	return nil
+	return 0, nil
 }
 
 // JMP - Jump.
-func (c *CPU) jmp(mode addressingMode, operand uint16) error {
+func (c *CPU) jmp(mode addressingMode, operand uint16) (int, error) {
 	c.pc = operand
-	return nil
+	return 0, nil
 }
 
 // JSR - Jump to Subroutine.
-func (c *CPU) jsr(mode addressingMode, operand uint16) error {
+func (c *CPU) jsr(mode addressingMode, operand uint16) (int, error) {
 	x := c.pc - 1
 	if err := c.push(byte(x>>8) & 0xFF); err != nil {
-		return err
+		return 0, err
 	}
 	if err := c.push(byte(x & 0xFF)); err != nil {
-		return err
+		return 0, err
 	}
 	c.pc = operand
-	return nil
+	return 0, nil
 }
 
 // LDA - Load Accumulator.
-func (c *CPU) lda(mode addressingMode, operand uint16) error {
+func (c *CPU) lda(mode addressingMode, operand uint16) (int, error) {
 	data, err := c.bus.read(operand)
 	if err != nil {
-		return err
+		return 0, err
 	}
 	c.a = data
 	c.setN(c.a)
 	c.setZ(c.a)
-	return nil
+	return 0, nil
 }
 
 // LDX - Load X Register.
-func (c *CPU) ldx(mode addressingMode, operand uint16) error {
+func (c *CPU) ldx(mode addressingMode, operand uint16) (int, error) {
 	data, err := c.bus.read(operand)
 	if err != nil {
-		return err
+		return 0, err
 	}
 	c.x = data
 	c.setN(c.x)
 	c.setZ(c.x)
-	return nil
+	return 0, nil
 }
 
 // LDY - Load Y Register.
-func (c *CPU) ldy(mode addressingMode, operand uint16) error {
+func (c *CPU) ldy(mode addressingMode, operand uint16) (int, error) {
 	data, err := c.bus.read(operand)
 	if err != nil {
-		return err
+		return 0, err
 	}
 	c.y = data
 	c.setN(c.y)
 	c.setZ(c.y)
-	return nil
+	return 0, nil
 }
 
 // LSR - Logical Shift Right.
-func (c *CPU) lsr(mode addressingMode, operand uint16) error {
+func (c *CPU) lsr(mode addressingMode, operand uint16) (int, error) {
 	if mode == accumulator {
 		c.p.c = c.a&1 == 1
 		c.a >>= 1
@@ -807,80 +859,80 @@ func (c *CPU) lsr(mode addressingMode, operand uint16) error {
 	} else {
 		x, err := c.bus.read(operand)
 		if err != nil {
-			return err
+			return 0, err
 		}
 		c.p.c = x&1 == 1
 		x >>= 1
 		if err := c.write(operand, x); err != nil {
-			return err
+			return 0, err
 		}
 		c.setN(x)
 		c.setZ(x)
 	}
-	return nil
+	return 0, nil
 }
 
 // NOP - No Operation.
-func (c *CPU) nop(mode addressingMode, operand uint16) error {
+func (c *CPU) nop(mode addressingMode, operand uint16) (int, error) {
 	if mode != implied {
 		glog.Infof("Unofficial opcode execution: NOP(not $EA), operand: 0x%04x\n", operand)
 	}
 	// noop
-	return nil
+	return 0, nil
 }
 
 // ORA - Bitwise OR with Accumulator.
-func (c *CPU) ora(mode addressingMode, operand uint16) error {
+func (c *CPU) ora(mode addressingMode, operand uint16) (int, error) {
 	data, err := c.bus.read(operand)
 	if err != nil {
-		return err
+		return 0, err
 	}
 	c.a = c.a | data
 	c.setN(c.a)
 	c.setZ(c.a)
-	return nil
+	return 0, nil
 }
 
 // PHA - Push Accumulator.
-func (c *CPU) pha(mode addressingMode, operand uint16) error {
+func (c *CPU) pha(mode addressingMode, operand uint16) (int, error) {
 	if err := c.push(c.a); err != nil {
-		return err
+		return 0, err
 	}
-	return nil
+	return 0, nil
 }
 
 // PHP - Push Processor Status.
-func (c *CPU) php(mode addressingMode, operand uint16) error {
+func (c *CPU) php(mode addressingMode, operand uint16) (int, error) {
 	if err := c.push(c.p.encode() | 0x10); err != nil {
-		return err
+		return 0, err
 	}
-	return nil
+	return 0, nil
 }
 
 // PLA - Pull Accumulator.
-func (c *CPU) pla(mode addressingMode, operand uint16) error {
+func (c *CPU) pla(mode addressingMode, operand uint16) (int, error) {
 	data, err := c.pop()
 	if err != nil {
-		return err
+		return 0, err
 	}
 	c.a = data
 	c.setN(c.a)
 	c.setZ(c.a)
-	return nil
+	return 0, nil
 }
 
 // PLP - Pull Processor Status.
-func (c *CPU) plp(mode addressingMode, operand uint16) error {
+func (c *CPU) plp(mode addressingMode, operand uint16) (int, error) {
 	data, err := c.pop()
 	if err != nil {
-		return err
+		return 0, err
 	}
 	c.p.decodeFrom(data&0xEF | 0x20)
-	return nil
+	return 0, nil
 }
 
 // ROL - Rotate Left.
-func (c *CPU) rol(mode addressingMode, operand uint16) error {
+func (c *CPU) rol(mode addressingMode, operand uint16) (int, error) {
 	var carry byte = 0
 	if c.p.c {
 		carry = 1
@@ -893,21 +945,21 @@ func (c *CPU) rol(mode addressingMode, operand uint16) error {
 	} else {
 		x, err := c.bus.read(operand)
 		if err != nil {
-			return err
+			return 0, err
 		}
 		c.p.c = (x>>7)&1 == 1
 		x = (x << 1) | carry
 		if err := c.write(operand, x); err != nil {
-			return err
+			return 0, err
 		}
 		c.setN(x)
 		c.setZ(x)
 	}
-	return nil
+	return 0, nil
 }
 
 // ROR - Rotate Right.
-func (c *CPU) ror(mode addressingMode, operand uint16) error {
+func (c *CPU) ror(mode addressingMode, operand uint16) (int, error) {
 	var carry byte = 0
 	if c.p.c {
 		carry = 1
@@ -920,58 +972,58 @@ func (c *CPU) ror(mode addressingMode, operand uint16) error {
 	} else {
 		x, err := c.bus.read(operand)
 		if err != nil {
-			return err
+			return 0, err
 		}
 		c.p.c = x&1 == 1
 		x = (x >> 1) | (carry << 7)
 		if err := c.write(operand, x); err != nil {
-			return err
+			return 0, err
 		}
 		c.setN(x)
 		c.setZ(x)
 	}
-	return nil
+	return 0, nil
 }
 
 // RTS - Return from Subroutine.
-func (c *CPU) rts(mode addressingMode, operand uint16) error {
+func (c *CPU) rts(mode addressingMode, operand uint16) (int, error) {
 	l, err := c.pop()
 	if err != nil {
-		return err
+		return 0, err
 	}
 	h, err := c.pop()
 	if err != nil {
-		return err
+		return 0, err
 	}
 	c.pc = (uint16(h)<<8 | uint16(l)) + 1
-	return nil
+	return 0, nil
 }
 
 // RTI - Return from Interrupt.
-func (c *CPU) rti(mode addressingMode, operand uint16) error {
+func (c *CPU) rti(mode addressingMode, operand uint16) (int, error) {
 	p, err := c.pop()
 	if err != nil {
-		return err
+		return 0, err
 	}
 	c.p.decodeFrom(p&0xEF | 0x20)
 	l, err := c.pop()
 	if err != nil {
-		return err
+		return 0, err
 	}
 	h, err := c.pop()
 	if err != nil {
-		return err
+		return 0, err
 	}
 	c.pc = uint16(h)<<8 | uint16(l)
-	return nil
+	return 0, nil
 }
 
 // SBC - Subtract with carry.
-func (c *CPU) sbc(mode addressingMode, operand uint16) error {
+func (c *CPU) sbc(mode addressingMode, operand uint16) (int, error) {
 	x := int16(c.a)
 	data, err := c.bus.read(operand)
 	if err != nil {
-		return err
+		return 0, err
 	}
 	y := int16(data)
 	carry := int16(0)
@@ -993,95 +1045,95 @@ func (c *CPU) sbc(mode addressingMode, operand uint16) error {
 	} else {
 		c.p.v = false
 	}
-	return nil
+	return 0, nil
 }
 
 // SEC - Set Carry.
-func (c *CPU) sec(mode addressingMode, operand uint16) error {
+func (c *CPU) sec(mode addressingMode, operand uint16) (int, error) {
 	c.p.c = true
-	return nil
+	return 0, nil
 }
 
 // SED - Set Carry.
-func (c *CPU) sed(mode addressingMode, operand uint16) error {
+func (c *CPU) sed(mode addressingMode, operand uint16) (int, error) {
 	c.p.d = true
-	return nil
+	return 0, nil
 }
 
 // SEI - Set Interrupt.
-func (c *CPU) sei(mode addressingMode, operand uint16) error {
+func (c *CPU) sei(mode addressingMode, operand uint16) (int, error) {
 	c.p.i = true
-	return nil
+	return 0, nil
 }
 
 // STA - Store A Register.
-func (c *CPU) sta(mode addressingMode, operand uint16) error {
+func (c *CPU) sta(mode addressingMode, operand uint16) (int, error) {
 	if err := c.write(operand, c.a); err != nil {
-		return err
+		return 0, err
 	}
-	return nil
+	return 0, nil
 }
 
 // STX - Store X Register.
-func (c *CPU) stx(mode addressingMode, operand uint16) error {
+func (c *CPU) stx(mode addressingMode, operand uint16) (int, error) {
 	if err := c.write(operand, c.x); err != nil {
-		return err
+		return 0, err
 	}
-	return nil
+	return 0, nil
 }
 
 // STY - Store Y Register.
-func (c *CPU) sty(mode addressingMode, operand uint16) error {
+func (c *CPU) sty(mode addressingMode, operand uint16) (int, error) {
 	if err := c.write(operand, c.y); err != nil {
-		return err
+		return 0, err
 	}
-	return nil
+	return 0, nil
 }
 
 // TAX - Transfer A to X.
-func (c *CPU) tax(mode addressingMode, operand uint16) error {
+func (c *CPU) tax(mode addressingMode, operand uint16) (int, error) {
 	c.x = c.a
 	c.setN(c.a)
 	c.setZ(c.a)
-	return nil
+	return 0, nil
 }
 
 // TAY - Transfer A to Y.
-func (c *CPU) tay(mode addressingMode, operand uint16) error {
+func (c *CPU) tay(mode addressingMode, operand uint16) (int, error) {
 	c.y = c.a
 	c.setN(c.y)
 	c.setZ(c.y)
-	return nil
+	return 0, nil
 }
 
 // TSX - Transfer S to X.
-func (c *CPU) tsx(mode addressingMode, operand uint16) error {
+func (c *CPU) tsx(mode addressingMode, operand uint16) (int, error) {
 	c.x = c.s
 	c.setN(c.s)
 	c.setZ(c.s)
-	return nil
+	return 0, nil
 }
 
 // TXA - Transfer X to A.
-func (c *CPU) txa(mode addressingMode, operand uint16) error {
+func (c *CPU) txa(mode addressingMode, operand uint16) (int, error) {
 	c.a = c.x
 	c.setN(c.a)
 	c.setZ(c.a)
-	return nil
+	return 0, nil
 }
 
 // TXS - Transfer X to S.
-func (c *CPU) txs(mode addressingMode, operand uint16) error {
+func (c *CPU) txs(mode addressingMode, operand uint16) (int, error) {
 	c.s = c.x
-	return nil
+	return 0, nil
 }
 
 // TYA - Transfer Y to A.
-func (c *CPU) tya(mode addressingMode, operand uint16) error {
+func (c *CPU) tya(mode addressingMode, operand uint16) (int, error) {
 	c.a = c.y
 	c.setN(c.a)
 	c.setZ(c.a)
-	return nil
+	return 0, nil
 }
 
 // NMI is non-maskable interrupt, this will be trigered by PPU.
@@ -1104,12 +1156,14 @@ func (c *CPU) nmi() error {
 	return nil
 }
 
-// Step performs the instruction cycle - fetch, decode, execute.
+// Step performs the instruction cycle - fetch, decode, execute, and returns the number of consumed cycles.
 func (c *CPU) Step() (int, error) {
 	// Running stall cycles.
 	if 0 < c.stall {
 		c.stall--
 		c.lastExecution = fmt.Sprintf("CPU stall, PC=0x%04x, A=0x%02x, X=0x%02x, Y=0x%02x, S=0x%02x", c.pc, c.a, c.x, c.y, c.s)
+		// 514 (OAMDMA) is large, if this returns 514 cycles, may cause sync problems.
+		// So here returns every single cycles to keep the sync with PPU.
 		return 1, nil
 	}
 	// Non-maskable interrupt.
@@ -1125,7 +1179,8 @@ func (c *CPU) Step() (int, error) {
 		return 0, fmt.Errorf("Failed to fetch opcode(0x%04x): %w", opcode, err)
 	}
 	instruction := c.instructions[opcode]
-	var operand uint16 = 0
+	operand := uint16(0)
+	additionalCycle := false
 	switch instruction.mode {
 	case implied:
 		operand = 0
@@ -1177,12 +1232,14 @@ func (c *CPU) Step() (int, error) {
 			return 0, err
 		}
 		operand = data + uint16(c.x)
+		additionalCycle = c.pageCrossed(operand-uint16(c.x), operand)
 	case absoluteY:
 		data, err := c.bus.read16(c.pc + 1)
 		if err != nil {
 			return 0, err
 		}
 		operand = data + uint16(c.y)
+		additionalCycle = c.pageCrossed(operand-uint16(c.y), operand)
 	case indirect:
 		p, err := c.bus.read16(c.pc + 1)
 		if err != nil {
@@ -1213,8 +1270,9 @@ func (c *CPU) Step() (int, error) {
 			return 0, err
 		}
 		operand = data + uint16(c.y)
+		additionalCycle = c.pageCrossed(operand-uint16(c.y), operand)
 	}
-	mnemonic := c.instructions[opcode].mnemonic
+	mnemonic := instruction.mnemonic
 	if mnemonic == "" {
 		return 0, fmt.Errorf("Tried to execute unimplemented instruction: opcode=0x%02x", opcode)
 	}
@@ -1222,12 +1280,19 @@ func (c *CPU) Step() (int, error) {
 	c.lastExecution = fmt.Sprintf("PC=0x%04x, A=0x%02x, X=0x%02x, Y=0x%02x, S=0x%02x, P=0x%02x, opcode=0x%02x, mnemonic=%s, operand: 0x%04x",
 		c.pc, c.a, c.x, c.y, c.s, c.p.encode(), opcode, mnemonic, operand)
 	c.pc += instruction.size
-	if err := instruction.execute(instruction.mode, operand); err != nil {
+	branchCycles, err := instruction.execute(instruction.mode, operand)
+	if err != nil {
 		return 0, fmt.Errorf("Failed to execute an instruction(%s): %w", c.lastExecution, err)
 	}
+	// Adding some cycles if needed.
 	cycles := instruction.cycles
+	cycles += branchCycles
 	if didNMI {
 		cycles += 7
+	}
+	// STA shouldn't be affected the page crossing.
+	if additionalCycle && mnemonic != "STA" {
+		cycles += 1
 	}
 	return cycles, nil
 }
@@ -1236,73 +1301,73 @@ func (c *CPU) Step() (int, error) {
 // Note: These implementations depend on existing opcode implementations.
 
 // LAX - ?
-func (c *CPU) lax(mode addressingMode, operand uint16) error {
+func (c *CPU) lax(mode addressingMode, operand uint16) (int, error) {
 	glog.Infof("Unofficial opcode execution: LAX, operand: 0x%04x\n", operand)
 	data, err := c.bus.read(operand)
 	if err != nil {
-		return err
+		return 0, err
 	}
 	c.a = data
 	c.x = data
 	c.setN(c.a)
 	c.setZ(c.a)
-	return nil
+	return 0, nil
 }
 
 // SAX - ?
-func (c *CPU) sax(mode addressingMode, operand uint16) error {
+func (c *CPU) sax(mode addressingMode, operand uint16) (int, error) {
 	glog.Infof("Unofficial opcode execution: SAX, operand: 0x%04x\n", operand)
 	x := c.a & c.x
 	if err := c.write(operand, x); err != nil {
-		return err
+		return 0, err
 	}
-	return nil
+	return 0, nil
 }
 
 // DCP - ?
-func (c *CPU) dcp(mode addressingMode, operand uint16) error {
+func (c *CPU) dcp(mode addressingMode, operand uint16) (int, error) {
 	glog.Infof("Unofficial opcode execution: DCP, operand: 0x%04x\n", operand)
 	c.dec(mode, operand)
 	c.cmp(mode, operand)
-	return nil
+	return 0, nil
 }
 
 // ISC - ?
-func (c *CPU) isc(mode addressingMode, operand uint16) error {
+func (c *CPU) isc(mode addressingMode, operand uint16) (int, error) {
 	glog.Infof("Unofficial opcode execution: ISC, operand: 0x%04x\n", operand)
 	c.inc(mode, operand)
 	c.sbc(mode, operand)
-	return nil
+	return 0, nil
 }
 
 // SLO - ?
-func (c *CPU) slo(mode addressingMode, operand uint16) error {
+func (c *CPU) slo(mode addressingMode, operand uint16) (int, error) {
 	glog.Infof("Unofficial opcode execution: SLO, operand: 0x%04x\n", operand)
 	c.asl(mode, operand)
 	c.ora(mode, operand)
-	return nil
+	return 0, nil
 }
 
 // RLA - ?
-func (c *CPU) rla(mode addressingMode, operand uint16) error {
+func (c *CPU) rla(mode addressingMode, operand uint16) (int, error) {
 	glog.Infof("Unofficial opcode execution: RLA, operand: 0x%04x\n", operand)
 	c.rol(mode, operand)
 	c.and(mode, operand)
-	return nil
+	return 0, nil
 }
 
 // SRE - ?
-func (c *CPU) sre(mode addressingMode, operand uint16) error {
+func (c *CPU) sre(mode addressingMode, operand uint16) (int, error) {
 	glog.Infof("Unofficial opcode execution: SRE, operand: 0x%04x\n", operand)
 	c.lsr(mode, operand)
 	c.eor(mode, operand)
-	return nil
+	return 0, nil
 }
 
 // RRA - ?
-func (c *CPU) rra(mode addressingMode, operand uint16) error {
+func (c *CPU) rra(mode addressingMode, operand uint16) (int, error) {
 	glog.Infof("Unofficial opcode execution: SRE, operand: 0x%04x\n", operand)
 	c.ror(mode, operand)
 	c.adc(mode, operand)
-	return nil
+	return 0, nil
 }
