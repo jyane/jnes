@@ -16,7 +16,7 @@ OpenGL 3.3
   - [x] Keyboard
 - [ ] PPU generates the foreground image
 - [ ] PPU scrolling
-- [ ] CPU runs at accurate cycles
+- [x] CPU runs at accurate cycles
 - [ ] Mappers
 - [x] FPS limit
 - [ ] Other NameTable Mirroring mode
