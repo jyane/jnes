@@ -95,16 +95,20 @@ type CPU struct {
 	lastExecution string  // For debug
 	stall         uint64  // Stall cycles
 	bus           *CPUBus
-	instructions  []instruction
-	nmiTriggered  bool
+	// instructions needs references to CPU itself.
+	instructions []instruction
+	// interrupts
+	nmiTriggered bool
 }
 
+// mnemonic will be empty if it still not implemented.
 type instruction struct {
 	mnemonic string
 	mode     addressingMode
-	execute  func(addressingMode, uint16) (int, error)
-	size     uint16
-	cycles   int
+	// execute returns additional cycles if a page crossing happened on branch instructions.
+	execute func(addressingMode, uint16) (int, error)
+	size    uint16
+	cycles  int
 }
 
 func (c *CPU) createInstructions() []instruction {
@@ -415,6 +419,8 @@ func (c *CPU) write(address uint16, data byte) error {
 		return c.bus.write(address, data)
 	}
 }
+
+// TODO(jyane): implement read to keep symmetry?
 
 // setN sets whether the x is negative or positive.
 func (c *CPU) setN(x byte) {
@@ -1157,6 +1163,7 @@ func (c *CPU) Step() (int, error) {
 		c.stall--
 		c.lastExecution = fmt.Sprintf("CPU stall, PC=0x%04x, A=0x%02x, X=0x%02x, Y=0x%02x, S=0x%02x", c.pc, c.a, c.x, c.y, c.s)
 		// 514 (OAMDMA) is large, if this returns 514 cycles, may cause sync problems.
+		// So here returns every single cycles to keep the sync with PPU.
 		return 1, nil
 	}
 	// Non-maskable interrupt.
@@ -1279,6 +1286,7 @@ func (c *CPU) Step() (int, error) {
 	}
 	// Adding some cycles if needed.
 	cycles := instruction.cycles
+	cycles += branchCycles
 	if didNMI {
 		cycles += 7
 	}
@@ -1286,7 +1294,7 @@ func (c *CPU) Step() (int, error) {
 	if additionalCycle && mnemonic != "STA" {
 		cycles += 1
 	}
-	return cycles + branchCycles, nil
+	return cycles, nil
 }
 
 // Unofficial opcodes - only a few games depend these opcodes.
