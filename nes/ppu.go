@@ -1,6 +1,7 @@
 package nes
 
 import (
+	"fmt"
 	"image"
 	"image/color"
 )
@@ -32,6 +33,48 @@ var colors = [64]color.RGBA{
 	{0x92, 0xDB, 0xFF, 255}, {0x92, 0x92, 0x92, 255}, {0x00, 0x00, 0x00, 255}, {0x00, 0x00, 0x00, 255},
 }
 
+type sprite struct {
+	index int
+	y     int
+
+	// 76543210
+	// ||||||||
+	// |||||||+- Bank ($0000 or $1000) of tiles
+	// +++++++-- Tile number of top of sprite (0 to 254; bottom half gets the next tile)
+	tile byte
+
+	// This attribute is separeted concept from attribute tables and sprite.
+	// 76543210
+	// ||||||||
+	// ||||||++- Palette (4 to 7) of sprite
+	// |||+++--- Unimplemented (read 0)
+	// ||+------ Priority (0: in front of background; 1: behind background)
+	// |+------- Flip sprite horizontally
+	// +-------- Flip sprite vertically
+	attribute byte
+	x         int
+}
+
+func (s *sprite) bank() uint16 {
+	if s.tile&1 == 0 {
+		return 0x0000
+	} else {
+		return 0x1000
+	}
+}
+
+func (s *sprite) tileByte() byte {
+	return s.tile >> 1
+}
+
+func (s *sprite) priority() byte {
+	return s.attribute >> 5 & 1
+}
+
+func (s *sprite) attributeTableByte() byte {
+	return (s.attribute & 3) + 4 // 0b11
+}
+
 // PPU stands for Picture Processing Unit, renders 256px x 240px image for a screen.
 // PPU is 3x faster than CPU and rendering 1 frame requires 341x262=89342 cycles (Each cycles writes a dot).
 // This implementation emulates NTSC not PAL or other ways.
@@ -43,7 +86,7 @@ var colors = [64]color.RGBA{
 type PPU struct {
 	bus *PPUBus
 
-	background *image.RGBA
+	picture *image.RGBA
 
 	// Registers and temp data for PPU.
 	// Reference:
@@ -53,6 +96,13 @@ type PPU struct {
 	// oam
 	oamAddress byte
 	oamData    [256]byte // PPU has internal memory for Object Attribute Memory.
+	sprites    [8]sprite
+	// The number of sprites should be rendered on current line.
+	spriteNum int
+
+	// https://www.nesdev.org/wiki/PPU_sprite_evaluation
+	spriteOverflow bool
+	spriteZeroHit  bool
 
 	// Current VRAM address (15bits), for PPUADDR $2006
 	// yyy NN YYYYY XXXXX
@@ -84,18 +134,14 @@ type PPU struct {
 	masterSlaveSelectFlag byte // 0: read backdrop from EXT pins; 1: output color on EXT pins
 
 	// $2001
-	grayScale              bool // unused.
-	showLeftBackgroundFlag bool
-	showLeftSpriteFlag     bool
-	showBackgroundFlag     bool
-	showSpriteFlag         bool
-	emphasizeRedFlag       bool // I have no idea about these, probably for PAL not NTSC.
-	emphasizeGreenFlag     bool // Same above.
-	emphasizeBlueFlag      bool // Same above.
-
-	// https://www.nesdev.org/wiki/PPU_sprite_evaluation
-	spriteOverflow byte
-	spriteZeroHit  byte
+	grayScale          bool // unused.
+	showLeftBackground bool
+	showLeftSprite     bool
+	showBackground     bool
+	showSprite         bool
+	emphasizeRed       bool // I have no idea about these, probably for PAL not NTSC.
+	emphasizeGreen     bool // Same above.
+	emphasizeBlue      bool // Same above.
 
 	// $2002
 	register byte
@@ -119,8 +165,8 @@ type PPU struct {
 // NewPPU creates a PPU.
 func NewPPU(bus *PPUBus) *PPU {
 	p := &PPU{
-		bus:        bus,
-		background: image.NewRGBA(image.Rect(0, 0, width, height)),
+		bus:     bus,
+		picture: image.NewRGBA(image.Rect(0, 0, width, height)),
 	}
 	return p
 }
@@ -134,10 +180,32 @@ func (p *PPU) Reset() {
 
 func (p *PPU) Frame() (bool, *image.RGBA) {
 	if p.cycle == 257 && p.scanline == 239 {
-		return true, p.background
+		return true, p.picture
 	} else {
 		return false, nil
 	}
+}
+
+func (p *PPU) readPalette(address uint16) byte {
+	mirrored := address
+	switch address {
+	case 0x3F10, 0x3F14, 0x3F18, 0x3F1C:
+		mirrored = address - 0x10
+	case 0x3F04, 0x3F08, 0x3F0C: // failback to 0.
+		mirrored = 0x3F00
+	}
+	mirrored -= 0x3F00
+	return p.paletteRAM[mirrored%32]
+}
+
+func (p *PPU) writePalette(address uint16, data byte) {
+	mirrored := address
+	switch address {
+	case 0x3F10, 0x3F14, 0x3F18, 0x3F1C:
+		mirrored = address - 0x10
+	}
+	mirrored -= 0x3F00
+	p.paletteRAM[mirrored%32] = data
 }
 
 // writePPUCTRL writes PPUCTRL ($2000).
@@ -156,20 +224,24 @@ func (p *PPU) writePPUCTRL(data byte) {
 // writePPUMASK writes PPUMASK ($2001).
 func (p *PPU) writePPUMASK(data byte) {
 	p.grayScale = data&1 == 1
-	p.showLeftBackgroundFlag = (data>>1)&1 == 1
-	p.showLeftSpriteFlag = (data>>2)&1 == 1
-	p.showBackgroundFlag = (data>>3)&1 == 1
-	p.showSpriteFlag = (data>>4)&1 == 1
-	p.emphasizeRedFlag = (data>>5)&1 == 1
-	p.emphasizeGreenFlag = (data>>6)&1 == 1
-	p.emphasizeBlueFlag = (data>>7)&1 == 1
+	p.showLeftBackground = (data>>1)&1 == 1
+	p.showLeftSprite = (data>>2)&1 == 1
+	p.showBackground = (data>>3)&1 == 1
+	p.showSprite = (data>>4)&1 == 1
+	p.emphasizeRed = (data>>5)&1 == 1
+	p.emphasizeGreen = (data>>6)&1 == 1
+	p.emphasizeBlue = (data>>7)&1 == 1
 }
 
 // readPPUSTATUS reads PPUSTATUS ($2002).
 func (p *PPU) readPPUSTATUS() byte {
 	res := p.register & 0x1F
-	res |= p.spriteOverflow << 5
-	res |= p.spriteZeroHit << 6
+	if p.spriteOverflow {
+		res |= 1 << 5
+	}
+	if p.spriteZeroHit {
+		res |= 1 << 6
+	}
 	// Some implementations retrun current NMI, but as per nesdev:
 	// "Return old status of NMI_occurred in bit 7, then set NMI_occurred to false."
 	// https://www.nesdev.org/wiki/NMI
@@ -241,7 +313,7 @@ func (p *PPU) writePPUADDR(data byte) {
 func (p *PPU) writePPUDATA(data byte) error {
 	// writing to paletteRAM
 	if 0x3F00 <= p.v {
-		p.paletteRAM[(p.v-0x3F00)%32] = data
+		p.writePalette(p.v, data)
 	} else {
 		if err := p.bus.write(p.v, data); err != nil {
 			return err
@@ -267,10 +339,7 @@ func (p *PPU) readPPUDATA() (byte, error) {
 		p.buffer = data
 		data = buffered
 	} else {
-		buf, err := p.bus.read(p.v)
-		if err != nil {
-			return 0, err
-		}
+		buf := p.readPalette(p.v)
 		p.buffer = buf
 	}
 	if p.vramIncrementFlag == 0 {
@@ -287,8 +356,7 @@ func (p *PPU) updateNMI(flag bool) {
 }
 
 // TODO(jyane): refactor this.
-func (p *PPU) getColor(x, y int, v byte) *color.RGBA {
-	attributeTableData := p.tempTileData[3]
+func (p *PPU) color(v, attributeTableData byte, x, y int) *color.RGBA {
 	var num byte = 0
 	if y%16 > 8 {
 		num |= 0b10
@@ -296,10 +364,9 @@ func (p *PPU) getColor(x, y int, v byte) *color.RGBA {
 	if x%16 > 8 {
 		num |= 0b01
 	}
-	var palette byte = 0 // 0, 1, 2 or 3
-	palette |= (attributeTableData >> byte(2*num)) & 1
+	palette := (attributeTableData >> byte(2*num)) & 1
 	palette |= 1 << ((attributeTableData >> byte(2*num+1)) & 1)
-	paletteData := p.paletteRAM[uint16(palette*4-(4-v))]
+	paletteData := p.readPalette(0x3F00 | uint16(palette*4-(4-v)))
 	c := colors[paletteData%64]
 	return &c
 }
@@ -387,12 +454,112 @@ func (p *PPU) fetchNameTableByte() error {
 	return nil
 }
 
-func (p *PPU) renderPixel() {
+// evaluateSprite evalutes sprites.
+// References:
+//   https://www.nesdev.org/wiki/PPU_OAM
+//   https://www.nesdev.org/wiki/PPU_sprite_evaluation
+func (p *PPU) evaluateSprite() {
+	// TODO(jyane): implement sprite size changing.
+	spriteCount := 0
+	for i := 0; i < 64; i++ {
+		y := p.oamData[i*4]
+		tile := p.oamData[i*4+1]
+		attribute := p.oamData[i*4+2]
+		x := p.oamData[i*4+3]
+		// preparing for the next scanline.
+		if int(y) <= p.scanline+1 && p.scanline+1 < int(y+8) {
+			if spriteCount < 8 {
+				p.sprites[spriteCount] = sprite{i, int(y), tile, attribute, int(x)}
+			}
+			spriteCount++
+		}
+	}
+	// NES allows only 8 sprites per line.
+	if 8 < spriteCount {
+		spriteCount = 8
+		p.spriteOverflow = true // I'm not sure...
+	}
+	p.spriteNum = spriteCount
+}
+
+// TODO(jyane): refactor? returning 3 results is odd.
+func (p *PPU) renderSpritePixel() (int, byte, error) {
+	if !p.showSprite {
+		return 0, 0, nil
+	}
+	x := p.cycle - 1
+	y := p.scanline
+	// smaller index num should be prioritized.
+	for i := 0; i < p.spriteNum; i++ {
+    sprite := p.sprites[i]
+		// if this sprite should be rendered on current x.
+		if sprite.x <= x && x < sprite.x+8 {
+			yy := y - sprite.y
+			xx := x - sprite.x
+			address := sprite.bank()*uint16(p.spriteTableFlag) + uint16(sprite.tileByte())*16 + uint16(yy)
+			lowTileByte, err := p.bus.read(address)
+			if err != nil {
+				return 0, 0, err
+			}
+			highTileByte, err := p.bus.read(address + 8)
+			if err != nil {
+				return 0, 0, err
+			}
+			lv := lowTileByte >> (7 - (xx % 8)) & 1  // low tile
+			hv := highTileByte >> (7 - (xx % 8)) & 1 // high tile
+			return i, lv + hv, nil
+		}
+	}
+	return 0, 0, nil
+}
+
+func (p *PPU) renderBackgroundPixel() byte {
+	if !p.showBackground {
+		return 0
+	}
+	x := p.cycle - 1                             // cycle 0 won't be rendered
+	lv := p.tempTileData[4] >> (7 - (x % 8)) & 1 // low tile
+	hv := p.tempTileData[5] >> (7 - (x % 8)) & 1 // high tile
+	return lv + hv
+}
+
+func (p *PPU) renderPixel() error {
 	x := p.cycle - 1 // cycle 0 won't be rendered
 	y := p.scanline
-	lv := p.tempTileData[4] >> (8 - (x % 8)) & 1 // low tile
-	hv := p.tempTileData[5] >> (8 - (x % 8)) & 1 // high tile
-	p.background.SetRGBA(x, y, *p.getColor(x, y, lv+hv))
+	attributeTableByte := p.tempTileData[3]
+	bg := p.renderBackgroundPixel()
+	i, sp, err := p.renderSpritePixel()
+	if err != nil {
+		return fmt.Errorf("Failed to render a sprite pixel: %w", err)
+	}
+	sprite := p.sprites[i]
+	color := &color.RGBA{}
+	bgOpaque := bg%4 != 0 // Please see palette assignment.
+	spOpaque := sp%4 != 0
+	if !spOpaque && !bgOpaque {
+		// both pixels are transparent.
+		color = p.color(0, attributeTableByte, x, y)
+	} else if spOpaque && !bgOpaque {
+		color = p.color(sp|0x10, sprite.attributeTableByte(), x, y)
+	} else if !spOpaque && bgOpaque {
+		color = p.color(bg, attributeTableByte, x, y)
+	} else {
+		// both pixles are opaque.
+		// "when an opaque pixel of sprite 0 overlaps an opaque pixel of the background, this is a sprite zero hit"
+		if sprite.index == 0 && x < 255 {
+			p.spriteZeroHit = true
+		}
+		// checking the priority.
+		if sprite.priority() == 1 {
+			// behind background.
+			color = p.color(bg, attributeTableByte, x, y)
+		} else {
+			// in front of background.
+			color = p.color(sp|0x10, sprite.attributeTableByte(), x, y)
+		}
+	}
+	p.picture.SetRGBA(x, y, *color)
+	return nil
 }
 
 // Step emulates a cycle of PPU and each cycles renders a pixel for NTSC.
@@ -400,9 +567,11 @@ func (p *PPU) renderPixel() {
 //   https://www.nesdev.org/wiki/PPU_rendering
 //   https://www.nesdev.org/wiki/File:Ntsc_timing.png
 func (p *PPU) Step() (bool, error) {
-	if p.showBackgroundFlag {
+	if p.showBackground {
 		if 1 <= p.cycle && p.cycle <= 256 && p.scanline <= 239 {
-			p.renderPixel()
+			if err := p.renderPixel(); err != nil {
+				return false, fmt.Errorf("Failed to render a pixel: %w", err)
+			}
 		}
 		if p.scanline == 261 && 280 <= p.cycle && p.cycle <= 304 {
 			p.copyY()
@@ -458,7 +627,18 @@ func (p *PPU) Step() (bool, error) {
 	}
 	// clear vblank
 	if p.scanline == 261 && p.cycle == 1 {
+		p.spriteOverflow = false
+		p.spriteZeroHit = false
 		p.updateNMI(false)
+	}
+	// Actual sprite evaluation will happen on each cycles, here just computes all logic by 1.
+	// Because sprite evaluation is independent logic.
+	if p.cycle == 257 {
+		if p.scanline <= 239 {
+			p.evaluateSprite()
+		} else {
+			p.spriteNum = 0
+		}
 	}
 	// tick
 	p.cycle++
