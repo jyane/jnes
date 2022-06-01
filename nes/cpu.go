@@ -406,9 +406,10 @@ func (c *CPU) write(address uint16, data byte) error {
 		for i := 0; i < 256; i++ {
 			d, err := c.bus.read(offset + uint16(i))
 			if err != nil {
-				return err
+				return fmt.Errorf("Failed to write OAMDMA: %w", err)
 			}
-			oamData[i] = d
+			oamData[c.bus.ppu.oamAddress] = d
+			c.bus.ppu.oamAddress++
 		}
 		c.bus.writeOAMDMA(oamData)
 		// TODO(jyane): this stall value depends on current cycle is even / odd.
