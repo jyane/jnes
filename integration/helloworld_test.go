@@ -13,7 +13,8 @@ func TestHelloWorld(t *testing.T) {
 	f, _ := os.Open("testdata/sample1.nes")
 	defer f.Close()
 	b, _ := ioutil.ReadAll(f)
-	console, _ := nes.NewConsole(b, false /* debug */)
+	cartridge, _ := nes.NewCartridge(b)
+	console, _ := nes.NewConsole(cartridge, false /* debug */)
 	console.Reset()
 	for {
 		console.Step()

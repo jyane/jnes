@@ -19,11 +19,7 @@ type NesConsole struct {
 }
 
 // NewConsole creates a console. If debug is true, this creates a debug console.
-func NewConsole(buf []byte, debug bool) (Console, error) {
-	cartridge, err := NewCartridge(buf)
-	if err != nil {
-		return nil, err
-	}
+func NewConsole(cartridge *Cartridge, debug bool) (Console, error) {
 	controller := NewController()
 	ppuBus := NewPPUBus(NewRAM(), cartridge)
 	ppu := NewPPU(ppuBus)

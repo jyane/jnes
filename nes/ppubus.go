@@ -13,22 +13,37 @@ func NewPPUBus(vram *RAM, cartridge *Cartridge) *PPUBus {
 }
 
 // https://www.nesdev.org/wiki/Mirroring
+//      (0,0)     (256,0)     (511,0)
+//        +-----------+-----------+
+//        |           |           |
+//        |           |           |
+//        |   $2000   |   $2400   |
+//        |           |           |
+//        |           |           |
+// (0,240)+-----------+-----------+(511,240)
+//        |           |           |
+//        |           |           |
+//        |   $2800   |   $2C00   |
+//        |           |           |
+//        |           |           |
+//        +-----------+-----------+
+//      (0,479)   (256,479)   (511,479)
 var offsets = [][]uint16{
-	{0x0400, 0x0000, 0x0400}, // horizontal
-	{0x0000, 0x0800, 0x0800}, // vertical
+	{0x0000, 0x0400, 0x0000, 0x0400}, // horizontal cartridge mirror=0
+	{0x0000, 0x0000, 0x0800, 0x0800}, // vertical   cartridge mirror=1
 }
 
 func (b *PPUBus) mirrorAddress(address uint16) uint16 {
-	mode := b.cartridge.mirror()
+	mode := b.cartridge.Mirror()
 	switch {
 	case address < 0x2400:
-		return address - 0x2000
-	case address < 0x2800:
 		return address - 0x2000 - offsets[mode][0]
-	case address < 0x2C00:
+	case address < 0x2800:
 		return address - 0x2000 - offsets[mode][1]
-	default: // address < 0x3000
+	case address < 0x2C00:
 		return address - 0x2000 - offsets[mode][2]
+	default: // address < 0x3000
+		return address - 0x2000 - offsets[mode][3]
 	}
 }
 

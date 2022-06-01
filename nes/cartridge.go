@@ -54,7 +54,7 @@ func readCHRROM(data []byte) []byte {
 	return data[l:r]
 }
 
-func (c *Cartridge) mirror() tableMirrorMode {
+func (c *Cartridge) Mirror() tableMirrorMode {
 	if c.flags6&1 == 1 {
 		return vertical
 	} else {
@@ -62,7 +62,7 @@ func (c *Cartridge) mirror() tableMirrorMode {
 	}
 }
 
-func (c *Cartridge) mapper() byte {
+func (c *Cartridge) Mapper() byte {
 	l := c.flags6 & 0xF0
 	h := c.flags7 & 0xF0
 	return h | (l >> 4)
@@ -82,8 +82,8 @@ func NewCartridge(data []byte) (*Cartridge, error) {
 	c.flags9 = data[9]
 	c.flags10 = data[10]
 	// TODO(jyane): Implement mappers, currently this cartridge only supports mapper0.
-	if c.mapper() != 0 {
-		return nil, fmt.Errorf("Mapper%d is not implemented.", c.mapper())
+	if c.Mapper() != 0 {
+		return nil, fmt.Errorf("Mapper%d is not implemented.", c.Mapper())
 	}
 	return c, nil
 }

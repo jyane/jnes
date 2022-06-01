@@ -44,11 +44,11 @@ func main() {
 	if *cpuprofile != "" {
 		f, err := os.Create("cpu.pprof")
 		if err != nil {
-			glog.Fatal("Failed to create CPU profile: ", err)
+			glog.Fatalln("Failed to create CPU profile: ", err)
 		}
 		defer f.Close()
 		if err := pprof.StartCPUProfile(f); err != nil {
-			glog.Fatal("Failed to start CPU profile: ", err)
+			glog.Fatalln("Failed to start CPU profile: ", err)
 		}
 		defer pprof.StopCPUProfile()
 	}
@@ -56,7 +56,12 @@ func main() {
 	if err != nil {
 		glog.Fatalln("Failed to read: " + *path)
 	}
-	console, err := nes.NewConsole(buf, *debug)
+	cartridge, err := nes.NewCartridge(buf)
+	if err != nil {
+		glog.Fatalln("Failed to initiate Cartridge: ", err)
+	}
+	glog.Infof("ROM path=%s, Mapper=%d, Mirror=%d\n", *path, cartridge.Mapper(), cartridge.Mirror())
+	console, err := nes.NewConsole(cartridge, *debug)
 	if err != nil {
 		glog.Fatalln("Failed to initiate Console: ", err)
 	}

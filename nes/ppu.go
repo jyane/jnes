@@ -468,21 +468,21 @@ func (p *PPU) evaluateSprite() {
 	// TODO(jyane): implement sprite size changing.
 	spriteCount := 0
 	for i := 0; i < 64; i++ {
-		y := p.primaryOAM[i*4]
+		y := int(p.primaryOAM[i*4])
 		tile := p.primaryOAM[i*4+1]
 		attribute := p.primaryOAM[i*4+2]
-		x := p.primaryOAM[i*4+3]
-		if int(y) <= p.scanline && p.scanline < int(y+8) {
-			spriteCount++
+		x := int(p.primaryOAM[i*4+3])
+		if y <= p.scanline+1 && p.scanline+1 < y+8 {
 			if spriteCount < 8 {
 				p.secondaryOAM[spriteCount] = sprite{
 					index:     i,
-					y:         int(y),
+					y:         y,
 					tile:      tile,
 					attribute: attribute,
-					x:         int(x),
+					x:         x,
 				}
 			}
+			spriteCount++
 		}
 	}
 	// NES allows only 8 sprites per line.
@@ -507,7 +507,7 @@ func (p *PPU) renderSpritePixel() (int, byte, error) {
 		if sprite.x <= x && x < sprite.x+8 {
 			yy := y - sprite.y
 			xx := x - sprite.x
-			address := sprite.bank()*uint16(p.spriteTableFlag) + uint16(sprite.tileByte())*16 + uint16(yy)
+			address := 0x1000*uint16(p.spriteTableFlag) + uint16(sprite.tileByte())*16 + uint16(yy)
 			lowTileByte, err := p.bus.read(address)
 			if err != nil {
 				return 0, 0, err
@@ -516,8 +516,8 @@ func (p *PPU) renderSpritePixel() (int, byte, error) {
 			if err != nil {
 				return 0, 0, err
 			}
-			lv := lowTileByte >> (7 - (xx % 8)) & 1  // low tile
-			hv := highTileByte >> (7 - (xx % 8)) & 1 // high tile
+			lv := lowTileByte >> (7 - xx) & 1  // low tile
+			hv := highTileByte >> (7 - xx) & 1 // high tile
 			return i, lv + hv, nil
 		}
 	}
@@ -528,7 +528,7 @@ func (p *PPU) renderBackgroundPixel() byte {
 	if !p.showBackground {
 		return 0
 	}
-	x := p.cycle - 1 // cycle 0 won't be rendered
+	x := p.cycle - 1
 	lowTileByte := p.tileDataBuffer[4]
 	highTileByte := p.tileDataBuffer[5]
 	lv := lowTileByte >> (7 - (x % 8)) & 1
@@ -551,10 +551,16 @@ func (p *PPU) renderPixel() error {
 	if x < 8 && !p.showLeftSprite {
 		sp = 0
 	}
+	// BG pixel | Sprite pixel | Priority | Output
+	// 0        | 0            | X        | BG($3F00)
+	// 0        | 1-3          | X        | Sprite
+	// 1-3      | 0            | X        | BG
+	// 1-3      | 1-3          | 0        | Sprite
+	// 1-3      | 1-3          | 1        | BG
+	bgOpaque := bg != 0
+	spOpaque := sp != 0
 	sprite := p.secondaryOAM[i]
 	color := &color.RGBA{}
-	bgOpaque := bg%4 != 0 // Please see palette assignment.
-	spOpaque := sp%4 != 0
 	if !spOpaque && !bgOpaque {
 		// both pixels are transparent, fallback to 0x3F00 color.
 		color = &colors[p.paletteRAM.read(0x3F00)]
