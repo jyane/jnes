@@ -12,15 +12,23 @@ func NewPPUBus(vram *RAM, cartridge *Cartridge) *PPUBus {
 	return &PPUBus{vram, cartridge}
 }
 
-// horizontal, vertical
-var offsets = []uint16{0x0800, 0x0400}
+// https://www.nesdev.org/wiki/Mirroring
+var offsets = [][]uint16{
+	{0x0400, 0x0000, 0x0400}, // horizontal
+	{0x0000, 0x0800, 0x0800}, // vertical
+}
 
 func (b *PPUBus) mirrorAddress(address uint16) uint16 {
 	mode := b.cartridge.mirror()
-	if 0x2000 <= address && address <= 0x23FF { // first screen
+	switch {
+	case address < 0x2400:
 		return address - 0x2000
-	} else {
-		return address - 0x2000 - offsets[mode]
+	case address < 0x2800:
+		return address - 0x2000 - offsets[mode][0]
+	case address < 0x2C00:
+		return address - 0x2000 - offsets[mode][1]
+	default: // address < 0x3000
+		return address - 0x2000 - offsets[mode][2]
 	}
 }
 
@@ -42,10 +50,10 @@ func (b *PPUBus) read(address uint16) (byte, error) {
 	case address < 0x2000:
 		return b.cartridge.readFromPPU(address)
 	case address < 0x3000:
-		return b.vram.read(b.mirrorAddress(address) % 2048), nil
+		return b.vram.read(b.mirrorAddress(address)), nil
 	case address < 0x3F00:
 		// Mirror
-		return b.vram.read((b.mirrorAddress(address) - 0x1000) % 2048), nil
+		return b.vram.read(b.mirrorAddress(address - 0x1000)), nil
 	default:
 		return 0, fmt.Errorf("Unknown PPU bus read: 0x%04x", address)
 	}
@@ -58,10 +66,10 @@ func (b *PPUBus) write(address uint16, data byte) error {
 	case address < 0x2000:
 		return b.cartridge.writeFromPPU(address, data)
 	case address < 0x3000:
-		b.vram.write(b.mirrorAddress(address)%2048, data)
+		b.vram.write(b.mirrorAddress(address), data)
 	case address < 0x3F00:
 		// Mirror
-		b.vram.write((b.mirrorAddress(address)-0x1000)%2048, data)
+		b.vram.write(b.mirrorAddress(address-0x1000), data)
 	default:
 		return fmt.Errorf("Unknown PPU bus write: address=0x%04x, data=0x%02x", address, data)
 	}

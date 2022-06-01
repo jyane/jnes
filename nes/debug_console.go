@@ -80,8 +80,8 @@ func (c *DebugConsole) basePrint() {
 	fmt.Println("Last: " + c.cpu.lastExecution)
 	fmt.Printf("CPU:  PC=0x%04x, A=0x%02x, X=0x%02x, Y=0x%02x, S=0x%02x, P=0x%02x\n",
 		c.cpu.pc, c.cpu.a, c.cpu.x, c.cpu.y, c.cpu.s, c.cpu.p.encode())
-	fmt.Printf("PPU: cycle=%d, scanline=%d, p.v=0x%04x\n",
-		c.ppu.cycle, c.ppu.scanline, c.ppu.v)
+	fmt.Printf("PPU: cycle=%d, scanline=%d, p.v=0x%04x, fineX(ppu.x)=%d, fineY=%d, coarseX=%d, coarseY=%d\n",
+		c.ppu.cycle, c.ppu.scanline, c.ppu.v, c.ppu.x, (c.ppu.v>>12)&7, c.ppu.v&31, (c.ppu.v>>5)&31)
 }
 
 func (c *DebugConsole) printCommand(args []string) {

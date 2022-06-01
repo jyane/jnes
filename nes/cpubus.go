@@ -33,7 +33,7 @@ func NewCPUBus(wram *RAM, ppu *PPU, cartridge *Cartridge, controller *Controller
 
 // writeOAMDMA writes OAMDATA to PPU, this will be called by CPU.
 func (b *CPUBus) writeOAMDMA(data [256]byte) {
-	b.ppu.oamData = data
+	b.ppu.primaryOAM = data
 }
 
 func (b *CPUBus) readPPURegister(address uint16) (byte, error) {
