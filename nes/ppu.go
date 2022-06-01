@@ -129,9 +129,7 @@ type PPU struct {
 	oamAddress   byte
 	primaryOAM   [256]byte // PPU has internal memory for Object Attribute Memory.
 	secondaryOAM [8]sprite
-	spriteBuffer [8]sprite // Buffers sprite for the next scanline.
-	// The number of sprites should be rendered on current line.
-	spriteNum int
+	secondaryNum int // The number of sprites should be rendered on current line.
 
 	// https://www.nesdev.org/wiki/PPU_sprite_evaluation
 	spriteOverflow bool
@@ -189,8 +187,6 @@ type PPU struct {
 	highTileByte       byte
 	// PPU fetches data for rendering before 2 "fetch cycles".
 	tileDataBuffer [6]byte
-	xbuffer        int
-	ybuffer        int
 
 	// cycle, scanline indicates which pixel is processing.
 	cycle    int
@@ -470,7 +466,6 @@ func (p *PPU) fetchNameTableByte() error {
 //   https://www.nesdev.org/wiki/PPU_sprite_evaluation
 func (p *PPU) evaluateSprite() {
 	// TODO(jyane): implement sprite size changing.
-	p.spriteBuffer = p.secondaryOAM
 	spriteCount := 0
 	for i := 0; i < 64; i++ {
 		y := p.primaryOAM[i*4]
@@ -495,7 +490,7 @@ func (p *PPU) evaluateSprite() {
 		spriteCount = 8
 		p.spriteOverflow = true // I'm not sure...
 	}
-	p.spriteNum = spriteCount
+	p.secondaryNum = spriteCount
 }
 
 // TODO(jyane): refactor? returning 3 results is odd.
@@ -506,8 +501,8 @@ func (p *PPU) renderSpritePixel() (int, byte, error) {
 	x := p.cycle - 1
 	y := p.scanline
 	// smaller index num should be prioritized.
-	for i := 0; i < p.spriteNum; i++ {
-		sprite := p.spriteBuffer[i]
+	for i := 0; i < p.secondaryNum; i++ {
+		sprite := p.secondaryOAM[i]
 		// if this sprite should be rendered on current x.
 		if sprite.x <= x && x < sprite.x+8 {
 			yy := y - sprite.y
@@ -671,7 +666,7 @@ func (p *PPU) Step() (bool, error) {
 		if p.scanline < 240 {
 			p.evaluateSprite()
 		} else {
-			p.spriteNum = 0
+			p.secondaryNum = 0
 		}
 	}
 	if p.nmiOutput && p.nmiOccurred {
