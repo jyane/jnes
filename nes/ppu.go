@@ -614,11 +614,6 @@ func (p *PPU) Step() (bool, error) {
 			p.scanline = 0
 		}
 	}
-	// if p.cycle == 257 {
-	// for i := 0; i < p.secondaryNum; i++ {
-	// fmt.Printf("y=%d, sprite=%+v\n", p.scanline, p.secondaryOAM[i])
-	// }
-	// }
 	// logic starts here.
 	if p.showBackground {
 		if 1 <= p.cycle && p.cycle <= 256 && p.scanline <= 239 {
