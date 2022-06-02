@@ -65,15 +65,24 @@ func (s *sprite) bank() uint16 {
 }
 
 func (s *sprite) tileByte() byte {
-	return s.tile & 0xFE
+	return s.tile
 }
 
 func (s *sprite) priority() byte {
 	return s.attribute >> 5 & 1
 }
 
-func (s *sprite) attributeTableByte() byte {
-	return (s.attribute & 3) + 4 // 0b11
+func (s *sprite) horizontalFlip() bool {
+	return s.attribute>>6&1 == 1
+}
+
+func (s *sprite) verticalFlip() bool {
+	return s.attribute>>7&1 == 1
+}
+
+// paletteAddress calculates its palette address from `value` which is from the tile.
+func (s *sprite) paletteAddress(value byte) uint16 {
+	return (0x3F00 | uint16((s.attribute&3)+4)*4) + uint16(value)
 }
 
 // PPU has an internal palette RAM
@@ -327,7 +336,7 @@ func (p *PPU) writePPUDATA(data byte) error {
 		p.paletteRAM.write(p.v, data)
 	} else {
 		if err := p.bus.write(p.v, data); err != nil {
-			return err
+			return fmt.Errorf("Failed to write PPUDATA: %w", err)
 		}
 	}
 	if p.vramIncrementFlag == 0 {
@@ -342,7 +351,7 @@ func (p *PPU) writePPUDATA(data byte) error {
 func (p *PPU) readPPUDATA() (byte, error) {
 	data, err := p.bus.read(p.v)
 	if err != nil {
-		return 0, err
+		return 0, fmt.Errorf("Failed to read PPUDATA: %w", err)
 	}
 	// Here buffers data if the address is not paletteRAM, because paletteRAM access is faster than bus access.
 	if p.v < 0x3F00 {
@@ -372,8 +381,7 @@ func (p *PPU) color(value, attributeTableData byte) *color.RGBA {
 	num := byte(y&8)>>2 | byte(x&8)>>3
 	palette := (attributeTableData >> (num << 1)) & 3
 	paletteIndex := p.paletteRAM.read(0x3F00 | uint16((palette<<2)+value))
-	c := colors[paletteIndex]
-	return &c
+	return &colors[paletteIndex]
 }
 
 // incrementCoarseX increments X, calc from https://www.nesdev.org/wiki/PPU_scrolling
@@ -504,9 +512,11 @@ func (p *PPU) renderSpritePixel() (int, byte, error) {
 		sprite := p.secondaryOAM[i]
 		// if this sprite should be rendered on current x.
 		if sprite.x <= x && x < sprite.x+8 {
-			yy := y - sprite.y
-			xx := x - sprite.x
-			address := 0x1000*uint16(p.spriteTableFlag) + uint16(sprite.tileByte())*16 + uint16(yy)
+			h := y - sprite.y
+			if sprite.verticalFlip() {
+				h = 7 - h
+			}
+			address := 0x1000*uint16(p.spriteTableFlag) + uint16(sprite.tileByte())*16 + uint16(h)
 			lowTileByte, err := p.bus.read(address)
 			if err != nil {
 				return 0, 0, err
@@ -515,8 +525,12 @@ func (p *PPU) renderSpritePixel() (int, byte, error) {
 			if err != nil {
 				return 0, 0, err
 			}
-			lv := lowTileByte >> (7 - xx) & 1  // low tile
-			hv := highTileByte >> (7 - xx) & 1 // high tile
+			shift := 7 - (x - sprite.x)
+			if sprite.horizontalFlip() {
+				shift = x - sprite.x
+			}
+			lv := (lowTileByte >> shift) & 1
+			hv := (highTileByte >> shift) & 1
 			return i, lv + hv, nil
 		}
 	}
@@ -564,7 +578,7 @@ func (p *PPU) renderPixel() error {
 		// both pixels are transparent, fallback to 0x3F00 color.
 		color = &colors[p.paletteRAM.read(0x3F00)]
 	} else if spOpaque && !bgOpaque {
-		color = p.color(sp|0x10, sprite.attributeTableByte())
+		color = &colors[p.paletteRAM.read(sprite.paletteAddress(sp))]
 	} else if !spOpaque && bgOpaque {
 		color = p.color(bg, attributeTableByte)
 	} else {
@@ -575,7 +589,7 @@ func (p *PPU) renderPixel() error {
 			color = p.color(bg, attributeTableByte)
 		} else {
 			// in front of background.
-			color = p.color(sp|0x10, sprite.attributeTableByte())
+			color = &colors[p.paletteRAM.read(sprite.paletteAddress(sp))]
 		}
 		// "when an opaque pixel of sprite 0 overlaps an opaque pixel of the background, this is a sprite zero hit"
 		if sprite.index == 0 && x < 255 {
