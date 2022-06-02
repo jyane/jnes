@@ -63,6 +63,9 @@ func (b *CPUBus) read(address uint16) (byte, error) {
 		return data, nil
 	case address == 0x4016: // 1P
 		return b.controller.read(), nil
+	case address == 0x4017: // 2P
+		// TODO(jyane): implement 2P controller
+		return 0, nil
 	case address < 0x4018:
 		glog.Infof("Unimplemented CPU bus read: address=0x%04x\n", address)
 		return 0, nil
@@ -141,6 +144,9 @@ func (b *CPUBus) write(address uint16, data byte) error {
 		return fmt.Errorf("CPU bus write was probably illegally called. (OAMDMA $4014)")
 	case address == 0x4016: // 1P
 		b.controller.write(data)
+	case address == 0x4017: // 2P
+		// TODO(jyane): implement 2P controller.
+		return nil
 	case address < 0x4018:
 		glog.Infof("Unimplemented CPU bus write: address=0x%04x, data=0x%02x\n", address, data)
 	case address < 0x4020:
