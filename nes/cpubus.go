@@ -67,7 +67,7 @@ func (b *CPUBus) read(address uint16) (byte, error) {
 		// TODO(jyane): implement 2P controller
 		return 0, nil
 	case address < 0x4018:
-		glog.Infof("Unimplemented CPU bus read: address=0x%04x\n", address)
+		glog.V(1).Infof("Unimplemented CPU bus read: address=0x%04x\n", address)
 		return 0, nil
 	case address < 0x4020:
 		return 0, fmt.Errorf("Reading unused bus address: 0x%04x\n", address)
@@ -148,7 +148,7 @@ func (b *CPUBus) write(address uint16, data byte) error {
 		// TODO(jyane): implement 2P controller.
 		return nil
 	case address < 0x4018:
-		glog.Infof("Unimplemented CPU bus write: address=0x%04x, data=0x%02x\n", address, data)
+		glog.V(1).Infof("Unimplemented CPU bus write: address=0x%04x, data=0x%02x\n", address, data)
 	case address < 0x4020:
 		return fmt.Errorf("Writing data to unused bus address: 0x%04x\n", address)
 	case 0x4020 <= address:
