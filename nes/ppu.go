@@ -280,7 +280,6 @@ func (p *PPU) writeOAMDATA(data byte) {
 
 // writePPUSCROLL writes PPUSCROLL ($2005).
 func (p *PPU) writePPUSCROLL(data byte) {
-	fmt.Println(data)
 	if !p.w {
 		// x-scroll
 		// t: ....... ...ABCDE <- d: ABCDE...
@@ -655,7 +654,6 @@ func (p *PPU) Step() (bool, error) {
 			}
 		}
 	}
-	// TODO(jyane): NMI, I'm not sure whether this logic is correct or not.
 	// set vblank
 	if p.scanline == 241 && p.cycle == 1 {
 		p.updateNMI(true)
@@ -675,7 +673,8 @@ func (p *PPU) Step() (bool, error) {
 			p.secondaryNum = 0
 		}
 	}
-	if p.nmiOutput && p.nmiOccurred {
+	// Here makes sure that only 1 NMI happens per frame.
+	if p.nmiOutput && p.nmiOccurred && p.scanline == 241 && p.cycle == 1 {
 		return true, nil
 	} else {
 		return false, nil
