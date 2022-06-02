@@ -1278,8 +1278,13 @@ func (c *CPU) Step() (int, error) {
 		return 0, fmt.Errorf("Tried to execute unimplemented instruction: opcode=0x%02x", opcode)
 	}
 	// Save debug string.
-	c.lastExecution = fmt.Sprintf("PC=0x%04x, A=0x%02x, X=0x%02x, Y=0x%02x, S=0x%02x, P=0x%02x, opcode=0x%02x, mnemonic=%s, operand: 0x%04x",
+	lastExecution := fmt.Sprintf("PC=0x%04x, A=0x%02x, X=0x%02x, Y=0x%02x, S=0x%02x, P=0x%02x, opcode=0x%02x, mnemonic=%s, operand: 0x%04x",
 		c.pc, c.a, c.x, c.y, c.s, c.p.encode(), opcode, mnemonic, operand)
+	if didNMI {
+		c.lastExecution = c.lastExecution + " -> " + lastExecution
+	} else {
+		c.lastExecution = lastExecution
+	}
 	c.pc += instruction.size
 	branchCycles, err := instruction.execute(instruction.mode, operand)
 	if err != nil {
