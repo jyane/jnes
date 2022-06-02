@@ -65,7 +65,7 @@ func (s *sprite) bank() uint16 {
 }
 
 func (s *sprite) tileByte() byte {
-	return s.tile
+	return s.tile & 0xFE
 }
 
 func (s *sprite) priority() byte {
@@ -516,7 +516,7 @@ func (p *PPU) renderSpritePixel() (int, byte, error) {
 			if sprite.verticalFlip() {
 				h = 7 - h
 			}
-			address := 0x1000*uint16(p.spriteTableFlag) + uint16(sprite.tileByte())*16 + uint16(h)
+			address := 0x1000*uint16(p.spriteTableFlag) + uint16(sprite.tile)*16 + uint16(h)
 			lowTileByte, err := p.bus.read(address)
 			if err != nil {
 				return 0, 0, err
