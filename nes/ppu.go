@@ -520,7 +520,7 @@ func (p *PPU) renderSpritePixel() (int, byte, error) {
 			}
 			lv := (lowTileByte >> shift) & 1
 			hv := (highTileByte >> shift) & 1
-			return i, lv + hv, nil
+			return i, hv<<1 | lv, nil
 		}
 	}
 	return 0, 0, nil
@@ -531,7 +531,7 @@ func (p *PPU) renderBackgroundPixel() (byte, uint16) {
 		return 0, 0
 	}
 	x := p.cycle - 1
-	y := p.scanline
+	// y := p.scanline
 	// concatenete 2 tiles.
 	lowTileByte := uint16(p.tileDataBuffer[4])<<8 | uint16(p.tileDataBuffer[1])
 	highTileByte := uint16(p.tileDataBuffer[5])<<8 | uint16(p.tileDataBuffer[2])
@@ -539,16 +539,27 @@ func (p *PPU) renderBackgroundPixel() (byte, uint16) {
 	shift := (15 - (byte(x) % 8)) - p.x
 	lv := lowTileByte >> shift & 1
 	hv := highTileByte >> shift & 1
-	value := byte(lv + hv)
+	value := byte(hv<<1 | lv)
 	// attribute
-	attrubuteTableByte := byte(0)
-	if 8 <= shift {
-		attrubuteTableByte = p.tileDataBuffer[3]
+	palette := byte(0)
+	if (p.v&2)>>1 == 1 { // if x-quadrant is top-right or bottom-right.
+		// checking the boundary of name table byte
+		// Here: p.tileDataBuffer[0] == p.tileDataBuffer[3] (the same name table bytes are fetched)
+		if 8 <= shift {
+			// the next name table byte
+			palette = p.tileDataBuffer[0] >> (((p.v >> 4) & 4) | 0) & 3
+		} else {
+			palette = p.tileDataBuffer[3] >> (((p.v >> 4) & 4) | 2) & 3
+		}
 	} else {
-		attrubuteTableByte = p.tileDataBuffer[0]
+		if 8 <= shift {
+			palette = p.tileDataBuffer[3] >> (((p.v >> 4) & 4) | 2) & 3
+		} else {
+			palette = p.tileDataBuffer[3] >> (((p.v >> 4) & 4) | 0) & 3
+		}
 	}
-	num := byte(y&8)>>2 | byte(x&8)>>3
-	palette := (attrubuteTableByte >> (num << 1)) & 3
+	// num := (byte(y)&8)>>2 | ((byte(x)+p.x)&8)>>3
+	// palette := (attributeTableByte >> (num << 1)) & 3
 	return value, 0x3F00 | uint16((palette<<2)+value)
 }
 
