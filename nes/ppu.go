@@ -373,15 +373,6 @@ func (p *PPU) updateNMI(flag bool) {
 	p.oldNMI = p.nmiOccurred
 }
 
-func (p *PPU) color(value, attributeTableData byte) *color.RGBA {
-	x := p.cycle - 1
-	y := p.scanline
-	num := byte(y&8)>>2 | byte(x&8)>>3
-	palette := (attributeTableData >> (num << 1)) & 3
-	paletteIndex := p.paletteRAM.read(0x3F00 | uint16((palette<<2)+value))
-	return &colors[paletteIndex]
-}
-
 // incrementCoarseX increments X, calc from https://www.nesdev.org/wiki/PPU_scrolling
 func (p *PPU) incrementCoarseX() {
 	if p.v&0x001F == 31 {
