@@ -101,8 +101,7 @@ func (r *paletteRAM) read(address uint16) byte {
 		// failback to 0.
 		mirrored = 0x3F00
 	}
-	mirrored -= 0x3F00
-	return r.ram[mirrored]
+	return r.ram[mirrored-0x3F00]
 }
 
 func (r *paletteRAM) write(address uint16, data byte) {
@@ -112,8 +111,7 @@ func (r *paletteRAM) write(address uint16, data byte) {
 	case 0x3F10, 0x3F14, 0x3F18, 0x3F1C:
 		mirrored = address - 0x10
 	}
-	mirrored -= 0x3F00
-	r.ram[mirrored] = data
+	r.ram[mirrored-0x3F00] = data
 }
 
 // PPU stands for Picture Processing Unit, renders 256px x 240px image for a screen.
@@ -375,15 +373,6 @@ func (p *PPU) updateNMI(flag bool) {
 	p.oldNMI = p.nmiOccurred
 }
 
-func (p *PPU) color(value, attributeTableData byte) *color.RGBA {
-	x := p.cycle - 1
-	y := p.scanline
-	num := byte(y&8)>>2 | byte(x&8)>>3
-	palette := (attributeTableData >> (num << 1)) & 3
-	paletteIndex := p.paletteRAM.read(0x3F00 | uint16((palette<<2)+value))
-	return &colors[paletteIndex]
-}
-
 // incrementCoarseX increments X, calc from https://www.nesdev.org/wiki/PPU_scrolling
 func (p *PPU) incrementCoarseX() {
 	if p.v&0x001F == 31 {
@@ -537,23 +526,36 @@ func (p *PPU) renderSpritePixel() (int, byte, error) {
 	return 0, 0, nil
 }
 
-func (p *PPU) renderBackgroundPixel() byte {
+func (p *PPU) renderBackgroundPixel() (byte, uint16) {
 	if !p.showBackground {
-		return 0
+		return 0, 0
 	}
 	x := p.cycle - 1
-	lowTileByte := p.tileDataBuffer[4]
-	highTileByte := p.tileDataBuffer[5]
-	lv := lowTileByte >> (7 - (x % 8)) & 1
-	hv := highTileByte >> (7 - (x % 8)) & 1
-	return lv + hv
+	y := p.scanline
+	// concatenete 2 tiles.
+	lowTileByte := uint16(p.tileDataBuffer[4])<<8 | uint16(p.tileDataBuffer[1])
+	highTileByte := uint16(p.tileDataBuffer[5])<<8 | uint16(p.tileDataBuffer[2])
+	// considering fineX to make the scroll smooth.
+	shift := (15 - (byte(x) % 8)) - p.x
+	lv := lowTileByte >> shift & 1
+	hv := highTileByte >> shift & 1
+	value := byte(lv + hv)
+	// attribute
+	attrubuteTableByte := byte(0)
+	if 8 <= shift {
+		attrubuteTableByte = p.tileDataBuffer[3]
+	} else {
+		attrubuteTableByte = p.tileDataBuffer[0]
+	}
+	num := byte(y&8)>>2 | byte(x&8)>>3
+	palette := (attrubuteTableByte >> (num << 1)) & 3
+	return value, 0x3F00 | uint16((palette<<2)+value)
 }
 
 func (p *PPU) renderPixel() error {
 	x := p.cycle - 1 // cycle 0 won't be rendered
 	y := p.scanline
-	attributeTableByte := p.tileDataBuffer[3]
-	bg := p.renderBackgroundPixel()
+	bg, paletteAddress := p.renderBackgroundPixel()
 	i, sp, err := p.renderSpritePixel()
 	if err != nil {
 		return fmt.Errorf("Failed to render a sprite pixel: %w", err)
@@ -580,13 +582,13 @@ func (p *PPU) renderPixel() error {
 	} else if spOpaque && !bgOpaque {
 		color = &colors[p.paletteRAM.read(sprite.paletteAddress(sp))]
 	} else if !spOpaque && bgOpaque {
-		color = p.color(bg, attributeTableByte)
+		color = &colors[p.paletteRAM.read(paletteAddress)]
 	} else {
 		// both pixles are opaque.
 		// checking the priority.
 		if sprite.priority() == 1 {
 			// behind background.
-			color = p.color(bg, attributeTableByte)
+			color = &colors[p.paletteRAM.read(paletteAddress)]
 		} else {
 			// in front of background.
 			color = &colors[p.paletteRAM.read(sprite.paletteAddress(sp))]
