@@ -82,7 +82,7 @@ func (s *sprite) verticalFlip() bool {
 
 // paletteAddress calculates its palette address from `value` which is from the tile.
 func (s *sprite) paletteAddress(value byte) uint16 {
-	return (0x3F00 | uint16((s.attribute&3)+4)*4) + uint16(value)
+	return (0x3F00 | uint16((s.attribute&3)+4)*4) | uint16(value)
 }
 
 // PPU has an internal palette RAM
@@ -442,7 +442,9 @@ func (p *PPU) fetchAttributeTableByte() error {
 	if err != nil {
 		return err
 	}
-	p.attributeTableByte = data
+	// saving with current xy-quadrant
+	// https://www.nesdev.org/wiki/PPU_attribute_tables
+	p.attributeTableByte = data >> (((p.v >> 4) & 4) | (p.v & 2)) & 3
 	return nil
 }
 
@@ -468,6 +470,7 @@ func (p *PPU) evaluateSprite() {
 		tile := p.primaryOAM[i*4+1]
 		attribute := p.primaryOAM[i*4+2]
 		x := int(p.primaryOAM[i*4+3])
+		// evaluating for the next scanline.
 		if y <= p.scanline+1 && p.scanline+1 < y+8 {
 			if spriteCount < 8 {
 				p.secondaryOAM[spriteCount] = sprite{
@@ -484,7 +487,7 @@ func (p *PPU) evaluateSprite() {
 	// NES allows only 8 sprites per line.
 	if 8 < spriteCount {
 		spriteCount = 8
-		p.spriteOverflow = true // I'm not sure...
+		p.spriteOverflow = true // I'm not sure whether this is correct.
 	}
 	p.secondaryNum = spriteCount
 }
@@ -520,42 +523,41 @@ func (p *PPU) renderSpritePixel() (int, byte, error) {
 			}
 			lv := (lowTileByte >> shift) & 1
 			hv := (highTileByte >> shift) & 1
-			return i, lv + hv, nil
+			return i, hv<<1 | lv, nil
 		}
 	}
 	return 0, 0, nil
 }
 
-func (p *PPU) renderBackgroundPixel() (byte, uint16) {
+func (p *PPU) renderBackgroundPixel() uint16 {
 	if !p.showBackground {
-		return 0, 0
+		return 0
 	}
 	x := p.cycle - 1
-	y := p.scanline
 	// concatenete 2 tiles.
 	lowTileByte := uint16(p.tileDataBuffer[4])<<8 | uint16(p.tileDataBuffer[1])
 	highTileByte := uint16(p.tileDataBuffer[5])<<8 | uint16(p.tileDataBuffer[2])
-	// considering fineX to make the scroll smooth.
+	// considering fineX (p.x) to make the scroll smooth.
 	shift := (15 - (byte(x) % 8)) - p.x
 	lv := lowTileByte >> shift & 1
 	hv := highTileByte >> shift & 1
-	value := byte(lv + hv)
+	value := byte(hv<<1 | lv)
 	// attribute
-	attrubuteTableByte := byte(0)
+	palette := byte(0)
+	// If the shift is over the 8x8 tile, attribute value (16x16) may also be over.
 	if 8 <= shift {
-		attrubuteTableByte = p.tileDataBuffer[3]
+		palette = p.tileDataBuffer[3]
 	} else {
-		attrubuteTableByte = p.tileDataBuffer[0]
+		palette = p.tileDataBuffer[0]
 	}
-	num := byte(y&8)>>2 | byte(x&8)>>3
-	palette := (attrubuteTableByte >> (num << 1)) & 3
-	return value, 0x3F00 | uint16((palette<<2)+value)
+	return 0x3F00 | uint16((palette<<2)|value)
 }
 
 func (p *PPU) renderPixel() error {
 	x := p.cycle - 1 // cycle 0 won't be rendered
 	y := p.scanline
-	bg, paletteAddress := p.renderBackgroundPixel()
+	paletteAddress := p.renderBackgroundPixel()
+	bg := paletteAddress & 3 // palette address's lower 3 bits indicate background value.
 	i, sp, err := p.renderSpritePixel()
 	if err != nil {
 		return fmt.Errorf("Failed to render a sprite pixel: %w", err)
@@ -680,8 +682,8 @@ func (p *PPU) Step() (bool, error) {
 		p.spriteZeroHit = false
 		p.updateNMI(false)
 	}
-	// Actual sprite evaluation will happen on each cycles, here just computes all logic by 1.
-	// Because sprite evaluation is independent logic.
+	// Actual sprite evaluation will happen on each cycles(?), here just computes all logic by 1.
+	// Because sprite evaluation is independent from scroll logic.
 	if p.cycle == 257 {
 		if p.scanline < 240 {
 			p.evaluateSprite()

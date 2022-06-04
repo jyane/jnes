@@ -14,8 +14,9 @@ OpenGL 3.3
   - [ ] 2P
   - [ ] JoyPad
   - [x] Keyboard
-- [ ] PPU generates the foreground image
-- [ ] PPU scrolling
+- [x] PPU generates the foreground image
+- [x] PPU scrolling
+- [ ] 16 sprite size
 - [x] CPU runs at accurate cycles
 - [ ] Mappers
 - [x] FPS limit
