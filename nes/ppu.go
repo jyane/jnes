@@ -82,7 +82,7 @@ func (s *sprite) verticalFlip() bool {
 
 // paletteAddress calculates its palette address from `value` which is from the tile.
 func (s *sprite) paletteAddress(value byte) uint16 {
-	return (0x3F00 | uint16((s.attribute&3)+4)*4) + uint16(value)
+	return (0x3F00 | uint16((s.attribute&3)+4)*4) | uint16(value)
 }
 
 // PPU has an internal palette RAM
@@ -442,7 +442,9 @@ func (p *PPU) fetchAttributeTableByte() error {
 	if err != nil {
 		return err
 	}
-	p.attributeTableByte = data
+	// saving with current xy-quadrant
+	// https://www.nesdev.org/wiki/PPU_attribute_tables
+	p.attributeTableByte = data >> (((p.v >> 4) & 4) | (p.v & 2)) & 3
 	return nil
 }
 
@@ -468,6 +470,7 @@ func (p *PPU) evaluateSprite() {
 		tile := p.primaryOAM[i*4+1]
 		attribute := p.primaryOAM[i*4+2]
 		x := int(p.primaryOAM[i*4+3])
+		// evaluating for the next scanline.
 		if y <= p.scanline+1 && p.scanline+1 < y+8 {
 			if spriteCount < 8 {
 				p.secondaryOAM[spriteCount] = sprite{
@@ -484,7 +487,7 @@ func (p *PPU) evaluateSprite() {
 	// NES allows only 8 sprites per line.
 	if 8 < spriteCount {
 		spriteCount = 8
-		p.spriteOverflow = true // I'm not sure...
+		p.spriteOverflow = true // I'm not sure whether this is correct.
 	}
 	p.secondaryNum = spriteCount
 }
@@ -526,49 +529,36 @@ func (p *PPU) renderSpritePixel() (int, byte, error) {
 	return 0, 0, nil
 }
 
-func (p *PPU) renderBackgroundPixel() (byte, uint16) {
+// TODO(jyane): refactor?
+func (p *PPU) renderBackgroundPixel() uint16 {
 	if !p.showBackground {
-		return 0, 0
+		return 0
 	}
 	x := p.cycle - 1
-	// y := p.scanline
 	// concatenete 2 tiles.
 	lowTileByte := uint16(p.tileDataBuffer[4])<<8 | uint16(p.tileDataBuffer[1])
 	highTileByte := uint16(p.tileDataBuffer[5])<<8 | uint16(p.tileDataBuffer[2])
-	// considering fineX to make the scroll smooth.
+	// considering fineX (p.x) to make the scroll smooth.
 	shift := (15 - (byte(x) % 8)) - p.x
 	lv := lowTileByte >> shift & 1
 	hv := highTileByte >> shift & 1
 	value := byte(hv<<1 | lv)
 	// attribute
 	palette := byte(0)
-	if (p.v&2)>>1 == 1 { // if x-quadrant is top-right or bottom-right.
-		// checking the boundary of name table byte
-		// Here: p.tileDataBuffer[0] == p.tileDataBuffer[3] (the same name table bytes are fetched)
-		if p.tileDataBuffer[0] != p.tileDataBuffer[3] {
-			fmt.Println("nooooooooooooooooooooooooooooooooooooooooooooo")
-		}
-		if 8 <= shift {
-			palette = p.tileDataBuffer[3] >> (((p.v >> 4) & 4) | 0) & 3
-		} else {
-			palette = p.tileDataBuffer[0] >> (((p.v >> 4) & 4) | 2) & 3
-		}
+	// If the shift is over the 8x8 tile, attribute value may also be over.
+	if 8 <= shift {
+		palette = p.tileDataBuffer[3]
 	} else {
-		if 8 <= shift {
-			palette = p.tileDataBuffer[3] >> (((p.v >> 4) & 4) | 2) & 3
-		} else {
-			palette = p.tileDataBuffer[3] >> (((p.v >> 4) & 4) | 0) & 3
-		}
+		palette = p.tileDataBuffer[0]
 	}
-	// num := (byte(y)&8)>>2 | ((byte(x)+p.x)&8)>>3
-	// palette := (attributeTableByte >> (num << 1)) & 3
-	return value, 0x3F00 | uint16((palette<<2)+value)
+	return 0x3F00 | uint16((palette<<2)|value)
 }
 
 func (p *PPU) renderPixel() error {
 	x := p.cycle - 1 // cycle 0 won't be rendered
 	y := p.scanline
-	bg, paletteAddress := p.renderBackgroundPixel()
+	paletteAddress := p.renderBackgroundPixel()
+	bg := paletteAddress & 3 // palette address's lower 3 bits indicate background value.
 	i, sp, err := p.renderSpritePixel()
 	if err != nil {
 		return fmt.Errorf("Failed to render a sprite pixel: %w", err)
