@@ -545,11 +545,13 @@ func (p *PPU) renderBackgroundPixel() (byte, uint16) {
 	if (p.v&2)>>1 == 1 { // if x-quadrant is top-right or bottom-right.
 		// checking the boundary of name table byte
 		// Here: p.tileDataBuffer[0] == p.tileDataBuffer[3] (the same name table bytes are fetched)
+		if p.tileDataBuffer[0] != p.tileDataBuffer[3] {
+			fmt.Println("nooooooooooooooooooooooooooooooooooooooooooooo")
+		}
 		if 8 <= shift {
-			// the next name table byte
-			palette = p.tileDataBuffer[0] >> (((p.v >> 4) & 4) | 0) & 3
+			palette = p.tileDataBuffer[3] >> (((p.v >> 4) & 4) | 0) & 3
 		} else {
-			palette = p.tileDataBuffer[3] >> (((p.v >> 4) & 4) | 2) & 3
+			palette = p.tileDataBuffer[0] >> (((p.v >> 4) & 4) | 2) & 3
 		}
 	} else {
 		if 8 <= shift {
