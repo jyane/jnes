@@ -529,7 +529,6 @@ func (p *PPU) renderSpritePixel() (int, byte, error) {
 	return 0, 0, nil
 }
 
-// TODO(jyane): refactor?
 func (p *PPU) renderBackgroundPixel() uint16 {
 	if !p.showBackground {
 		return 0
@@ -545,7 +544,7 @@ func (p *PPU) renderBackgroundPixel() uint16 {
 	value := byte(hv<<1 | lv)
 	// attribute
 	palette := byte(0)
-	// If the shift is over the 8x8 tile, attribute value may also be over.
+	// If the shift is over the 8x8 tile, attribute value (16x16) may also be over.
 	if 8 <= shift {
 		palette = p.tileDataBuffer[3]
 	} else {
@@ -683,8 +682,8 @@ func (p *PPU) Step() (bool, error) {
 		p.spriteZeroHit = false
 		p.updateNMI(false)
 	}
-	// Actual sprite evaluation will happen on each cycles, here just computes all logic by 1.
-	// Because sprite evaluation is independent logic.
+	// Actual sprite evaluation will happen on each cycles(?), here just computes all logic by 1.
+	// Because sprite evaluation is independent from scroll logic.
 	if p.cycle == 257 {
 		if p.scanline < 240 {
 			p.evaluateSprite()
