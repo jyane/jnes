@@ -82,7 +82,7 @@ func (s *sprite) verticalFlip() bool {
 
 // paletteAddress calculates its palette address from `value` which is from the tile.
 func (s *sprite) paletteAddress(value byte) uint16 {
-	return (0x3F00 | uint16((s.attribute&3)+4)*4) | uint16(value)
+	return 0x3F00 | uint16((s.attribute&3)+4)*4 | uint16(value)
 }
 
 // PPU has an internal palette RAM

@@ -64,7 +64,7 @@ func (b *PPUBus) vramAddress(address uint16) uint16 {
 func (b *PPUBus) read(address uint16) (byte, error) {
 	switch {
 	case address < 0x2000:
-		return b.cartridge.readFromPPU(address)
+		return b.cartridge.ReadFromPPU(address)
 	case address < 0x3000:
 		return b.vram.read(b.vramAddress(address)), nil
 	case address < 0x3F00:
@@ -80,7 +80,7 @@ func (b *PPUBus) read(address uint16) (byte, error) {
 func (b *PPUBus) write(address uint16, data byte) error {
 	switch {
 	case address < 0x2000:
-		return b.cartridge.writeFromPPU(address, data)
+		return b.cartridge.WriteFromPPU(address, data)
 	case address < 0x3000:
 		b.vram.write(b.vramAddress(address), data)
 	case address < 0x3F00:
