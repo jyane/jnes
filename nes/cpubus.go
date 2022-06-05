@@ -72,7 +72,7 @@ func (b *CPUBus) read(address uint16) (byte, error) {
 	case address < 0x4020:
 		return 0, fmt.Errorf("Reading unused bus address: 0x%04x\n", address)
 	case 0x4020 <= address:
-		return b.cartridge.readFromCPU(address)
+		return b.cartridge.ReadFromCPU(address)
 	default:
 		return 0, fmt.Errorf("Unknown CPU bus read: 0x%04x", address)
 	}
@@ -152,7 +152,7 @@ func (b *CPUBus) write(address uint16, data byte) error {
 	case address < 0x4020:
 		return fmt.Errorf("Writing data to unused bus address: 0x%04x\n", address)
 	case 0x4020 <= address:
-		return b.cartridge.writeFromCPU(address, data)
+		return b.cartridge.WriteFromCPU(address, data)
 	default:
 		return fmt.Errorf("Unknown CPU bus write: address=0x%04x, data=0x%02x", address, data)
 	}

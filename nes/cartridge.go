@@ -18,8 +18,7 @@ const (
 
 // https://www.nesdev.org/wiki/INES
 type Cartridge struct {
-	prgROM  []byte
-	chrROM  []byte
+	Mapper
 	flags6  byte // https://www.nesdev.org/wiki/INES#Flags_6
 	flags7  byte // https://www.nesdev.org/wiki/INES#Flags_7
 	flags8  byte // https://www.nesdev.org/wiki/INES#Flags_8
@@ -62,7 +61,7 @@ func (c *Cartridge) Mirror() tableMirrorMode {
 	}
 }
 
-func (c *Cartridge) Mapper() byte {
+func (c *Cartridge) MapperIndex() byte {
 	l := c.flags6 & 0xF0
 	h := c.flags7 & 0xF0
 	return h | (l >> 4)
@@ -74,45 +73,14 @@ func NewCartridge(data []byte) (*Cartridge, error) {
 	if !isValid(data) {
 		return nil, fmt.Errorf("The buffer is not a valid NES format.")
 	}
-	c.prgROM = readPRGROM(data)
-	c.chrROM = readCHRROM(data)
 	c.flags6 = data[6]
 	c.flags7 = data[7]
 	c.flags8 = data[8]
 	c.flags9 = data[9]
 	c.flags10 = data[10]
-	// TODO(jyane): Implement mappers, currently this cartridge only supports mapper0.
-	if c.Mapper() != 0 {
-		return nil, fmt.Errorf("Mapper%d is not implemented.", c.Mapper())
+	c.Mapper = NewMapper(c.MapperIndex(), readPRGROM(data), readCHRROM(data))
+	if c.Mapper == nil {
+		return nil, fmt.Errorf("Mapper%d is not implemented.", c.MapperIndex())
 	}
 	return c, nil
-}
-
-// Mapper0: https://www.nesdev.org/wiki/NROM
-
-// currently only supports mapper0.
-func (c *Cartridge) readFromCPU(address uint16) (byte, error) {
-	if 0x8000 <= address {
-		// CPU $C000-$FFFF: Last 16 KB of ROM (NROM-256) or mirror of $8000-$BFFF (NROM-128).
-		mod := uint16(len(c.prgROM))
-		return c.prgROM[(address-0x8000)%mod], nil
-	}
-	// CPU $6000-$7FFF: Family Basic only: PRG RAM, mirrored as necessary to fill entire 8 KiB window, write protectable with an external switch
-	return 0, fmt.Errorf("Reading PRGRAM not implemented. address: 0x%04x", address)
-}
-
-func (c *Cartridge) writeFromCPU(address uint16, data byte) error {
-	if 0x8000 <= address {
-		return fmt.Errorf("Writing data to PrgROM not allowed: address=0x%04x, data=0x%02x", address, data)
-	}
-	// CPU $6000-$7FFF: Family Basic only: PRG RAM, mirrored as necessary to fill entire 8 KiB window, write protectable with an external switch
-	return fmt.Errorf("Writing data to PRGRAM not implemented. address: 0x%04x, data: 0x%02x", address, data)
-}
-
-func (c *Cartridge) readFromPPU(address uint16) (byte, error) {
-	return c.chrROM[address], nil
-}
-
-func (c *Cartridge) writeFromPPU(address uint16, data byte) error {
-	return fmt.Errorf("Writing data to pattern tables not allowed, address=0x%04x, data=0x%02x", address, data)
 }

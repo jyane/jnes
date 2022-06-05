@@ -60,7 +60,7 @@ func main() {
 	if err != nil {
 		glog.Fatalln("Failed to initiate Cartridge: ", err)
 	}
-	glog.Infof("ROM path=%s, Mapper=%d, Mirror=%d\n", *path, cartridge.Mapper(), cartridge.Mirror())
+	glog.Infof("ROM path=%s, Mapper=%d, Mirror=%d\n", *path, cartridge.MapperIndex(), cartridge.Mirror())
 	console, err := nes.NewConsole(cartridge, *debug)
 	if err != nil {
 		glog.Fatalln("Failed to initiate Console: ", err)
