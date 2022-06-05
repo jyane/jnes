@@ -315,7 +315,7 @@ func (p *PPU) writePPUADDR(data byte) {
 		//    <unused>     <- d: AB......
 		// t: Z...... ........ <- 0 (bit Z is cleared)
 		// w:                  <- 1
-		p.t = (p.t & 0xC0FF) | (uint16(data) << 8)
+		p.t = (p.t & 0x80FF) | (uint16(data) << 8)
 		p.w = true
 	} else {
 		// t: ....... ABCDEFGH <- d: ABCDEFGH
@@ -331,6 +331,9 @@ func (p *PPU) writePPUADDR(data byte) {
 func (p *PPU) writePPUDATA(data byte) error {
 	// writing to paletteRAM
 	if 0x3F00 <= p.v {
+		if 0x3FFF < p.v {
+			return fmt.Errorf("Writing PPU address=0x%04x is not allowd, data=0x%02x\n", p.v, data)
+		}
 		p.paletteRAM.write(p.v, data)
 	} else {
 		if err := p.bus.write(p.v, data); err != nil {
@@ -436,6 +439,7 @@ func (p *PPU) fetchHighTileByte() error {
 }
 
 // Address calc from https://www.nesdev.org/wiki/PPU_scrolling
+// https://www.jyane.dev/2022/06/04/nes-dev-common-mistakes.html (In Japanese)
 func (p *PPU) fetchAttributeTableByte() error {
 	address := 0x23C0 | (p.v & 0x0C00) | ((p.v >> 4) & 0x38) | ((p.v >> 2) & 0x07)
 	data, err := p.bus.read(address)
@@ -535,6 +539,7 @@ func (p *PPU) renderBackgroundPixel() uint16 {
 	}
 	x := p.cycle - 1
 	// concatenete 2 tiles.
+	// https://www.jyane.dev/2022/06/04/nes-dev-common-mistakes.html (In Japanese)
 	lowTileByte := uint16(p.tileDataBuffer[4])<<8 | uint16(p.tileDataBuffer[1])
 	highTileByte := uint16(p.tileDataBuffer[5])<<8 | uint16(p.tileDataBuffer[2])
 	// considering fineX (p.x) to make the scroll smooth.
