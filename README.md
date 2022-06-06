@@ -1,23 +1,20 @@
 # JNES
+A NES (ファミリーコンピュータ) Emulator.
 
 ## Requirements
-OpenGL 3.3
+- OpenGL 3.3
+- [glfw 3.3](https://github.com/go-gl/glfw)
 
 ## TODO
-- [x] Hello, World!
-  - http://hp.vector.co.jp/authors/VA042397/nes/sample.html
-- [X] Test
-- [x] Debugger
+- [x] CPU
 - [ ] APU
-- [ ] Controller
+- [x] Controller
   - [x] 1P
   - [ ] 2P
-  - [ ] JoyPad
-  - [x] Keyboard
-- [x] PPU generates the foreground image
-- [x] PPU scrolling
-- [ ] 16 sprite size
-- [x] CPU runs at accurate cycles
-- [ ] Mappers
-- [x] FPS limit
+- [x] PPU
+  - [ ] 16 sprite size
+- [x] Mappers
+  - [x] Mapper0
+  - [x] Mapper2
+  - [ ] Other mappers
 - [ ] Other NameTable Mirroring mode
