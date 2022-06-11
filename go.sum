@@ -4,3 +4,5 @@ github.com/go-gl/glfw/v3.3/glfw v0.0.0-20220514210836-eae9d2d3f5b7 h1:CeiPtFvqS9
 github.com/go-gl/glfw/v3.3/glfw v0.0.0-20220514210836-eae9d2d3f5b7/go.mod h1:tQ2UAYgL5IevRw8kRxooKSPJfGvJ9fJQFa0TUsXzTg8=
 github.com/golang/glog v1.0.0 h1:nfP3RFugxnNRyKgeWd4oI1nYvXpxrx8ck8ZrcizshdQ=
 github.com/golang/glog v1.0.0/go.mod h1:EWib/APOK0SL3dFbYqvxE3UYd8E6s1ouQ7iEp/0LWV4=
+github.com/gordonklaus/portaudio v0.0.0-20220320131553-cc649ad523c1 h1:FgUJ91JoMbS5qWXdIpnHta1hLtw1X8n2ek5JRED3R1I=
+github.com/gordonklaus/portaudio v0.0.0-20220320131553-cc649ad523c1/go.mod h1:HfYnZi/ARQKG0dwH5HNDmPCHdLiFiBf+SI7DbhW7et4=

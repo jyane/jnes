@@ -9,6 +9,7 @@ import (
 type CPUBus struct {
 	wram       *RAM
 	ppu        *PPU
+	apu        *APU
 	cartridge  *Cartridge
 	controller *Controller
 }
@@ -27,8 +28,8 @@ type CPUBus struct {
 // $4018-$401F    $0008  APU and I/O functionality that is normally disabled. See CPU Test Mode.
 // $4020-$FFFF    $BFE0  Cartridge space: PRG ROM, PRG RAM, and mapper registers (See Note)
 
-func NewCPUBus(wram *RAM, ppu *PPU, cartridge *Cartridge, controller *Controller) *CPUBus {
-	return &CPUBus{wram, ppu, cartridge, controller}
+func NewCPUBus(wram *RAM, ppu *PPU, apu *APU, cartridge *Cartridge, controller *Controller) *CPUBus {
+	return &CPUBus{wram, ppu, apu, cartridge, controller}
 }
 
 // writeOAMDMA writes OAMDATA to PPU, this will be called by CPU.
@@ -106,6 +107,31 @@ func (b *CPUBus) read16(address uint16) (uint16, error) {
 	return uint16(h)<<8 | uint16(l), nil
 }
 
+func (b *CPUBus) writeToAPURegisters(address uint16, data byte) {
+	switch address {
+	case 0x4000:
+		b.apu.pulse1.writeControl(data)
+	case 0x4001:
+		b.apu.pulse1.writeSweep(data)
+	case 0x4002:
+		b.apu.pulse1.writeTimerLow(data)
+	case 0x4003:
+		b.apu.pulse1.writeTimerHigh(data)
+	case 0x4004:
+		b.apu.pulse2.writeControl(data)
+	case 0x4005:
+		b.apu.pulse2.writeSweep(data)
+	case 0x4006:
+		b.apu.pulse2.writeTimerLow(data)
+	case 0x4007:
+		b.apu.pulse2.writeTimerHigh(data)
+	case 0x4015:
+		b.apu.writeControl(data)
+	default:
+		glog.Warningf("Unimplemented APU register write, address=0x%04x, data=0x%02x\n", address, data)
+	}
+}
+
 // writeToPPURegisters writes data to PPU registers.
 func (b *CPUBus) writeToPPURegisters(address uint16, data byte) error {
 	addr := 0x2000 | address%8
@@ -146,9 +172,8 @@ func (b *CPUBus) write(address uint16, data byte) error {
 		b.controller.write(data)
 	case address == 0x4017: // 2P
 		// TODO(jyane): implement 2P controller.
-		return nil
 	case address < 0x4018:
-		glog.V(1).Infof("Unimplemented CPU bus write: address=0x%04x, data=0x%02x\n", address, data)
+		b.writeToAPURegisters(address, data)
 	case address < 0x4020:
 		return fmt.Errorf("Writing data to unused bus address: 0x%04x\n", address)
 	case 0x4020 <= address:
