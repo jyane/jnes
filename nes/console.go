@@ -6,12 +6,14 @@ type Console interface {
 	Reset() error
 	Step() (int, error)
 	Frame() (*image.RGBA, bool)
+	SetAudioOut(chan float32)
 	SetButtons([8]bool)
 }
 
 type NesConsole struct {
 	cpu          *CPU
 	ppu          *PPU
+	apu          *APU
 	controller   *Controller
 	lastFrame    uint64
 	currentFrame uint64
@@ -23,9 +25,10 @@ func NewConsole(cartridge *Cartridge, debug bool) (Console, error) {
 	controller := NewController()
 	ppuBus := NewPPUBus(NewRAM(), cartridge)
 	ppu := NewPPU(ppuBus)
-	cpuBus := NewCPUBus(NewRAM(), ppu, cartridge, controller)
+	apu := NewAPU()
+	cpuBus := NewCPUBus(NewRAM(), ppu, apu, cartridge, controller)
 	cpu := NewCPU(cpuBus)
-	console := &NesConsole{cpu: cpu, ppu: ppu, controller: controller}
+	console := &NesConsole{cpu: cpu, ppu: ppu, apu: apu, controller: controller}
 	if debug {
 		return &DebugConsole{NesConsole: console}, nil
 	} else {
@@ -48,6 +51,9 @@ func (c *NesConsole) Step() (int, error) {
 	cycles, err := c.cpu.Step()
 	if err != nil {
 		return cycles, err
+	}
+	for i := 0; i < cycles; i++ {
+		c.apu.Step()
 	}
 	// PPU's clock is exactly 3x faster than CPU's
 	for i := 0; i < cycles*3; i++ {
@@ -75,6 +81,10 @@ func (c *NesConsole) Frame() (*image.RGBA, bool) {
 	} else {
 		return c.buffer, false
 	}
+}
+
+func (c *NesConsole) SetAudioOut(channel chan float32) {
+	c.apu.SetAudioOut(channel)
 }
 
 func (c *NesConsole) SetButtons(buttons [8]bool) {

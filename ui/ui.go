@@ -10,7 +10,7 @@ import (
 	"github.com/jyane/jnes/nes"
 )
 
-func mainLoop(window *glfw.Window, console nes.Console, program uint32) {
+func mainLoop(window *glfw.Window, console nes.Console, program uint32, audio *audio) {
 	for range time.Tick(16 * time.Millisecond) {
 		currentCycles := 0
 		for currentCycles < nes.CPUFrequency/60 {
@@ -55,5 +55,11 @@ func Start(console nes.Console, width int, height int) {
 	gl.UseProgram(program)
 	glfw.WindowHint(glfw.ContextVersionMajor, 3)
 	glfw.WindowHint(glfw.ContextVersionMinor, 3)
-	mainLoop(window, console, program)
+	audio := newAudio()
+	console.SetAudioOut(audio.channel)
+	if err := audio.start(); err != nil {
+		glog.Fatalln(err)
+	}
+	defer audio.terminate()
+	mainLoop(window, console, program, audio)
 }

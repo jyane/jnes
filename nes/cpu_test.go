@@ -27,7 +27,8 @@ func newTestCPU() *CPU {
 	controller := NewController()
 	ppuBus := NewPPUBus(NewRAM(), cartridge)
 	ppu := NewPPU(ppuBus)
-	cpuBus := NewCPUBus(NewRAM(), ppu, cartridge, controller)
+	apu := NewAPU()
+	cpuBus := NewCPUBus(NewRAM(), ppu, apu, cartridge, controller)
 	cpu := NewCPU(cpuBus)
 	cpu.pc = 0xC000
 	cpu.s = 0xFD
