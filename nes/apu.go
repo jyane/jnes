@@ -3,10 +3,10 @@ package nes
 import "math"
 
 type APU struct {
-	pulse1   pulse
-	pulse2   pulse
-	out      chan float32
-	sample   int
+	pulse1 pulse
+	pulse2 pulse
+	out    chan float32
+	sample int
 }
 
 func NewAPU() *APU {
