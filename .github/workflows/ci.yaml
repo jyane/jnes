@@ -19,7 +19,7 @@ jobs:
       - name: go fmt
         run: make fmt && git diff --exit-code
       - name: install
-        run: sudo apt install libgl1-mesa-dev xorg-dev
+        run: sudo apt install libgl1-mesa-dev xorg-dev portaudio19-dev
       - name: build
         run: make build
       - name: test
